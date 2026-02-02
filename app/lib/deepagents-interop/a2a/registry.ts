@@ -8,9 +8,8 @@ import { createDeepAgent } from "deepagents";
 import type { CompiledStateGraph } from "@langchain/langgraph";
 import type { StructuredTool } from "langchain/tools";
 import type { SubAgent } from "deepagents";
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatOpenAI } from "@langchain/openai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createLLM, type LLMProvider } from "./providers";
 
 /**
  * Agent configuration for registry
@@ -27,9 +26,11 @@ export interface AgentConfig {
 
   /** Model configuration */
   model: {
-    provider: "anthropic" | "openai" | "custom";
+    provider: LLMProvider | "custom";
     name: string;
     temperature?: number;
+    apiKey?: string; // Optional override for specific agent
+    baseURL?: string; // Optional custom base URL
   };
 
   /** System prompt */
@@ -167,36 +168,19 @@ export class AgentRegistry {
    * Create a model based on configuration
    */
   private createModel(modelConfig: AgentConfig["model"]): BaseChatModel {
-    const { provider, name, temperature = 0 } = modelConfig;
+    const { provider, name, temperature = 0, apiKey, baseURL } = modelConfig;
 
-    switch (provider) {
-      case "anthropic": {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) {
-          throw new Error("ANTHROPIC_API_KEY not configured");
-        }
-        return new ChatAnthropic({
-          model: name,
-          temperature,
-          anthropicApiKey: apiKey,
-        });
-      }
-
-      case "openai": {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-          throw new Error("OPENAI_API_KEY not configured");
-        }
-        return new ChatOpenAI({
-          model: name,
-          temperature,
-          openAIApiKey: apiKey,
-        });
-      }
-
-      default:
-        throw new Error(`Unsupported model provider: ${provider}`);
+    if (provider === "custom") {
+      throw new Error("Custom providers must be instantiated manually");
     }
+
+    // Use the provider middleware
+    return createLLM(provider, {
+      apiKey,
+      baseURL,
+      defaultModel: name,
+      temperature,
+    });
   }
 
   /**
