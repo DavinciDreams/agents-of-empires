@@ -23,11 +23,11 @@ A Next.js application integrating **deepagentsjs** with the **Microsoft Agent Fr
 
 ## Quick Links
 
-- 📖 [Integration Complete](INTEGRATION_COMPLETE.md) - Full overview
-- 🎯 [Phase 1: Agent Cards](PHASE1_COMPLETE.md)
-- 🔄 [Phase 2: A2A Protocol](PHASE2_ENHANCED.md)
-- ✨ [Phase 3: A2UI Streaming](PHASE3_COMPLETE.md)
-- 🤝 [Contributing Guide](CONTRIBUTING.md)
+- 📖 [Integration Complete](docs/INTEGRATION_COMPLETE.md) - Full overview
+- 🎯 [Phase 1: Agent Cards](docs/PHASE1_COMPLETE.md)
+- 🔄 [Phase 2: A2A Protocol](docs/PHASE2_ENHANCED.md)
+- ✨ [Phase 3: A2UI Streaming](docs/PHASE3_COMPLETE.md)
+- 🤝 [Contributing Guide](docs/CONTRIBUTING.md)
 
 ## Prerequisites
 
