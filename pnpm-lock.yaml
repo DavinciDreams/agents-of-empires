@@ -20,6 +20,9 @@ importers:
       '@langchain/langgraph-checkpoint':
         specifier: ^1.0.0
         version: 1.0.0(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))
+      '@langchain/openai':
+        specifier: ^1.2.4
+        version: 1.2.4(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))
       '@types/react-syntax-highlighter':
         specifier: ^15.5.13
         version: 15.5.13
