@@ -15,8 +15,8 @@ import {
   rateLimiter,
   apiKeyAuth,
   composeMiddleware,
-} from "@/lib/deepagents-interop";
-import { A2AErrorCode } from "@/lib/deepagents-interop/types";
+} from "@/app/lib/deepagents-interop";
+import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
 
 // Initialize middleware
 const middleware = composeMiddleware(

@@ -8,7 +8,7 @@
  */
 
 import React, { useMemo } from "react";
-import { A2UIMessage } from "@/lib/deepagents-interop/types/a2ui";
+import { A2UIMessage } from "@/app/lib/deepagents-interop/types/a2ui";
 
 // Import component renderers
 import { TextComponent } from "./components/Text";

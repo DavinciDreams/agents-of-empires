@@ -4,7 +4,7 @@
  * Demonstrates how to invoke an agent using the A2A protocol.
  */
 
-import type { A2ARequest, A2AResponse } from "@/lib/deepagents-interop/types";
+import type { A2ARequest, A2AResponse } from "@/app/lib/deepagents-interop/types";
 
 const BASE_URL = "http://localhost:3000";
 const AGENT_ID = "default";

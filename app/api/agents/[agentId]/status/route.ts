@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ExecutionTracker } from "@/lib/deepagents-interop";
-import { A2AErrorCode } from "@/lib/deepagents-interop/types";
+import { ExecutionTracker } from "@/app/lib/deepagents-interop";
+import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
 
 /**
  * GET handler for status check

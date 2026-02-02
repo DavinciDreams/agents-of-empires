@@ -12,10 +12,10 @@ import {
   rateLimiter,
   apiKeyAuth,
   composeMiddleware,
-} from "@/lib/deepagents-interop";
-import { A2UIWrapper } from "@/lib/deepagents-interop/a2ui/wrapper";
-import { A2AErrorCode } from "@/lib/deepagents-interop/types";
-import { validateA2ARequest } from "@/lib/deepagents-interop/a2a/validator";
+} from "@/app/lib/deepagents-interop";
+import { A2UIWrapper } from "@/app/lib/deepagents-interop/a2ui/wrapper";
+import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
+import { validateA2ARequest } from "@/app/lib/deepagents-interop/a2a/validator";
 
 // Middleware stack
 const middleware = composeMiddleware(

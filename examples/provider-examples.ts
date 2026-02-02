@@ -4,7 +4,7 @@
  * Demonstrates how to use different LLM providers with the agent registry.
  */
 
-import { AgentRegistry } from "@/lib/deepagents-interop";
+import { AgentRegistry } from "@/app/lib/deepagents-interop";
 
 /**
  * Example 1: Using OpenRouter (Access to 200+ models)
@@ -245,7 +245,7 @@ export async function exampleAPIUsage() {
  * Example 9: Check available providers
  */
 export function checkAvailableProviders() {
-  const { getAvailableProviders, PROVIDER_METADATA } = require("@/lib/deepagents-interop");
+  const { getAvailableProviders, PROVIDER_METADATA } = require("@/app/lib/deepagents-interop");
 
   const available = getAvailableProviders();
 

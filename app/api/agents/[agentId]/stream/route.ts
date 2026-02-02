@@ -8,8 +8,8 @@
 import { NextRequest } from "next/server";
 import { createDeepAgent } from "deepagents";
 import { ChatAnthropic } from "@langchain/anthropic";
-import { A2AWrapper, validateA2ARequest } from "@/lib/deepagents-interop";
-import { A2AErrorCode } from "@/lib/deepagents-interop/types";
+import { A2AWrapper, validateA2ARequest } from "@/app/lib/deepagents-interop";
+import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
 
 /**
  * POST handler for streaming agent invocation

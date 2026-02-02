@@ -7,7 +7,7 @@
 import { createDeepAgent } from "deepagents";
 import { tool } from "langchain";
 import { z } from "zod";
-import { generateAgentCard, extractCapabilities } from "@/lib/deepagents-interop";
+import { generateAgentCard, extractCapabilities } from "@/app/lib/deepagents-interop";
 import type { SubAgent } from "deepagents";
 
 // Example: Create a simple tool

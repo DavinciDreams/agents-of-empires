@@ -6,8 +6,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { generateAgentCard } from "@/lib/deepagents-interop";
-import type { DeepAgentConfig } from "@/lib/deepagents-interop";
+import { generateAgentCard } from "@/app/lib/deepagents-interop";
+import type { DeepAgentConfig } from "@/app/lib/deepagents-interop";
 
 /**
  * GET /.well-known/agent-card.json
