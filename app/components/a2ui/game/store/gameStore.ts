@@ -205,6 +205,17 @@ interface GameState {
     timestamp: number;
   }>;
 
+  // Combat Animations
+  combatAnimations: Array<{
+    id: string;
+    type: 'attack_slash' | 'impact' | 'projectile' | 'dragon_breath';
+    startPosition: [number, number, number];
+    endPosition?: [number, number, number];
+    direction?: [number, number, number];
+    color?: string;
+    timestamp: number;
+  }>;
+
   // Agent Middleware Configuration
   backendConfig: {
     type: BackendType;
@@ -341,6 +352,16 @@ interface GameActions {
   addVictoryEffect: (position: [number, number, number], type: 'combat' | 'goal') => string;
   removeVictoryEffect: (id: string) => void;
 
+  // Combat Animations
+  addCombatAnimation: (
+    type: 'attack_slash' | 'impact' | 'projectile' | 'dragon_breath',
+    startPosition: [number, number, number],
+    endPosition?: [number, number, number],
+    direction?: [number, number, number],
+    color?: string
+  ) => string;
+  removeCombatAnimation: (id: string) => void;
+
   // Batch updates
   updateMultipleAgents: (updates: Array<{ id: string; changes: Partial<GameAgent> }>) => void;
 
@@ -393,6 +414,7 @@ export const useGameStore = create<GameStore>()(
     contextMenuAgentId: null,
     activeGoalId: null,
     victoryEffects: [],
+    combatAnimations: [],
     backendConfig: {
       type: "store",
       initialized: false,
@@ -1352,6 +1374,29 @@ export const useGameStore = create<GameStore>()(
   removeVictoryEffect: (id) => {
     set((state) => {
       state.victoryEffects = state.victoryEffects.filter(effect => effect.id !== id);
+    });
+  },
+
+  // Combat Animations
+  addCombatAnimation: (type, startPosition, endPosition, direction, color) => {
+    const id = `combat-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    set((state) => {
+      state.combatAnimations.push({
+        id,
+        type,
+        startPosition,
+        endPosition,
+        direction,
+        color,
+        timestamp: Date.now(),
+      });
+    });
+    return id;
+  },
+
+  removeCombatAnimation: (id) => {
+    set((state) => {
+      state.combatAnimations = state.combatAnimations.filter(anim => anim.id !== id);
     });
   },
 

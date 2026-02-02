@@ -309,8 +309,14 @@ export function StructurePool({ onStructureClick, onStructureRightClick }: Struc
   const hoverStructureId = useGameStore((state) => state.hoverStructureId);
   const selectedAgentIds = useGameStore((state) => state.selectedAgentIds);
   const setHoveredStructure = useGameStore((state) => state.setHoveredStructure);
-  const victoryEffects = useGameStore((state) => state.victoryEffects.filter(e => e.type === 'goal'));
+  const allVictoryEffects = useGameStore((state) => state.victoryEffects);
   const removeVictoryEffect = useGameStore((state) => state.removeVictoryEffect);
+
+  // Filter goal victory effects with memoization
+  const victoryEffects = useMemo(
+    () => allVictoryEffects.filter(e => e.type === 'goal'),
+    [allVictoryEffects]
+  );
 
   // Handle structure hover
   const handleStructureHover = useCallback((structureId: string | null) => {

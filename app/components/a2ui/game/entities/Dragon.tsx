@@ -7,6 +7,7 @@ import { Text } from "@react-three/drei";
 import { useGameStore, useAgentsShallow, useDragonsShallow, type GameAgent, type Dragon as DragonType } from '@/app/components/a2ui/game/store';
 import { Object3DTooltip, DragonTooltipContent } from '@/app/components/a2ui/game/ui/Object3DTooltip';
 import { VictoryCelebration } from '@/app/components/a2ui/game/effects/VictoryEffects';
+import { CombatAnimationRenderer } from '@/app/components/a2ui/game/effects/CombatAnimations';
 
 // ============================================================================
 // Dragon Types Configuration
@@ -366,6 +367,8 @@ export function DragonPool({ onDragonClick }: DragonPoolProps) {
   const dragonsMap = useDragonsShallow() as Record<string, DragonType>;
   const allVictoryEffects = useGameStore((state) => state.victoryEffects);
   const removeVictoryEffect = useGameStore((state) => state.removeVictoryEffect);
+  const combatAnimations = useGameStore((state) => state.combatAnimations);
+  const removeCombatAnimation = useGameStore((state) => state.removeCombatAnimation);
 
   // Convert object to array with memoization
   const dragons = useMemo(() => Object.values(dragonsMap), [dragonsMap]);
@@ -395,6 +398,12 @@ export function DragonPool({ onDragonClick }: DragonPoolProps) {
           onComplete={() => removeVictoryEffect(effect.id)}
         />
       ))}
+
+      {/* Combat animations */}
+      <CombatAnimationRenderer
+        animations={combatAnimations}
+        onAnimationComplete={removeCombatAnimation}
+      />
     </>
   );
 }
@@ -412,6 +421,7 @@ export function useCombat() {
   const removeDragon = useGameStore((state) => state.removeDragon);
   const setAgentState = useGameStore((state) => state.setAgentState);
   const addVictoryEffect = useGameStore((state) => state.addVictoryEffect);
+  const addCombatAnimation = useGameStore((state) => state.addCombatAnimation);
 
   // Agent attacks dragon
   const attackDragon = useCallback(
@@ -421,12 +431,26 @@ export function useCombat() {
 
       if (!agent || !dragon) return;
 
+      // Add attack slash animation
+      const agentPos = agent.position;
+      const dragonPos = dragon.position;
+      const midPoint: [number, number, number] = [
+        (agentPos[0] + dragonPos[0]) / 2,
+        (agentPos[1] + dragonPos[1]) / 2 + 1,
+        (agentPos[2] + dragonPos[2]) / 2,
+      ];
+      addCombatAnimation('attack_slash', agentPos, midPoint, undefined, '#f39c12');
+
       // Calculate damage based on agent level
       const baseDamage = 10 + agent.level * 5;
       const variance = Math.random() * 10 - 5;
       const damage = Math.round(baseDamage + variance);
 
-      // Apply damage
+      // Apply damage with impact effect
+      setTimeout(() => {
+        addCombatAnimation('impact', dragonPos, undefined, undefined, '#ff6b6b');
+      }, 150);
+
       damageDragon(dragonId, damage);
 
       // Check if dragon is defeated
@@ -448,8 +472,35 @@ export function useCombat() {
         return { damage, defeated: true };
       }
 
-      // Dragon counter-attacks
+      // Dragon counter-attacks with breath effect
       const dragonDamage = Math.round(5 + Math.random() * 10);
+
+      // Add dragon breath animation
+      const direction: [number, number, number] = [
+        agent.position[0] - dragon.position[0],
+        agent.position[1] - dragon.position[1],
+        agent.position[2] - dragon.position[2],
+      ];
+      const length = Math.sqrt(direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2);
+      const normalizedDir: [number, number, number] = [
+        direction[0] / length,
+        direction[1] / length,
+        direction[2] / length,
+      ];
+
+      setTimeout(() => {
+        const dragonColor = dragon.type === 'SYNTAX' ? '#e74c3c' :
+                           dragon.type === 'RUNTIME' ? '#9b59b6' :
+                           dragon.type === 'NETWORK' ? '#3498db' :
+                           dragon.type === 'PERMISSION' ? '#27ae60' : '#2c3e50';
+        addCombatAnimation('dragon_breath', dragon.position, undefined, normalizedDir, dragonColor);
+
+        // Impact on agent
+        setTimeout(() => {
+          addCombatAnimation('impact', agent.position, undefined, undefined, '#ff4757');
+        }, 400);
+      }, 300);
+
       updateAgent(agentId, {
         health: Math.max(0, agent.health - dragonDamage),
       });
@@ -463,7 +514,7 @@ export function useCombat() {
 
       return { damage, defeated: false, dragonDamage };
     },
-    [agentsMap, dragonsMap, damageDragon, removeDragon, setAgentState, updateAgent, addVictoryEffect]
+    [agentsMap, dragonsMap, damageDragon, removeDragon, setAgentState, updateAgent, addVictoryEffect, addCombatAnimation]
   );
 
   // Auto-resolve combat (simulated retry logic)

@@ -11,6 +11,7 @@ import { screenToWorld } from '@/app/components/a2ui/game/core/CameraController'
 import { useAgentBridge } from '@/app/components/a2ui/game/bridge/AgentBridge';
 import { PartyPanel } from "./PartyPanel";
 import { StructureInfoPanel } from "./StructureInfoPanel";
+import { ThemeToggle } from "./ThemeToggle";
 
 // ============================================================================
 // Minimap Component
@@ -939,6 +940,11 @@ export function HUD({ className = "" }: HUDProps) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Theme toggle */}
+      <div className="pointer-events-auto fixed top-4 right-56 z-40">
+        <ThemeToggle />
+      </div>
     </div>
   );
 }

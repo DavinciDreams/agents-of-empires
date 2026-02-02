@@ -12,6 +12,7 @@ import { DragonPool } from './entities/Dragon';
 import { StructurePool } from './entities/Structure';
 import { ConnectionLines } from './entities/ConnectionLines';
 import { HUD } from './ui/HUD';
+import { Tutorial } from './ui/Tutorial';
 import { AgentBridgeProvider } from './bridge/AgentBridge';
 import { useGameStore } from './store/gameStore';
 
@@ -118,6 +119,9 @@ export function GameScene() {
 
         {/* UI Overlay (rendered outside Canvas) */}
         <HUD />
+
+        {/* Tutorial System */}
+        <Tutorial />
       </AgentBridgeProvider>
     </GameState>
   );
