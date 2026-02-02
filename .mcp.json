@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "langsmith": {
+      "command": "/home/ubuntu/snap/code/220/.local/share/../bin/uvx",
+      "args": [
+        "langsmith-mcp-server"
+      ],
+      "env": {
+        "LANGSMITH_API_KEY": "${LANGSMITH_API_KEY}",
+        "LANGSMITH_WORKSPACE_ID": "${LANGSMITH_WORKSPACE_ID}",
+        "LANGSMITH_ENDPOINT": "https://api.smith.langchain.com"
+      }
+    },
+    "docs-langchain": {
+      "url": "https://docs.langchain.com/mcp"
+    }
+  }
+}

@@ -10,6 +10,13 @@
 !.yarn/releases
 !.yarn/versions
 
+# pnpm
+.pnpm-store/
+
+# Prevent npm/yarn lock files (use pnpm only)
+package-lock.json
+yarn.lock
+
 # testing
 /coverage
 

@@ -1,0 +1,118 @@
+/**
+ * GET /api/agents/[agentId]/status
+ *
+ * Check execution status using execution tracker.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { ExecutionTracker } from "@/lib/deepagents-interop";
+import { A2AErrorCode } from "@/lib/deepagents-interop/types";
+
+/**
+ * GET handler for status check
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { agentId: string } }
+) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const executionId = searchParams.get("executionId");
+    const threadId = searchParams.get("threadId");
+    const checkpointId = searchParams.get("checkpointId");
+
+    if (!executionId && !threadId && !checkpointId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: A2AErrorCode.INVALID_REQUEST,
+            message: "Either executionId, threadId, or checkpointId is required",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const tracker = ExecutionTracker.getInstance();
+    let execution;
+
+    // Find execution by ID, thread, or checkpoint
+    if (executionId) {
+      execution = tracker.getExecution(executionId);
+    } else if (threadId) {
+      execution = tracker.getExecutionByThread(threadId);
+    } else if (checkpointId) {
+      execution = tracker.getExecutionByCheckpoint(checkpointId);
+    }
+
+    if (!execution) {
+      return NextResponse.json(
+        {
+          error: {
+            code: A2AErrorCode.AGENT_NOT_FOUND,
+            message: "Execution not found",
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Verify agent ID matches
+    if (execution.agentId !== params.agentId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: A2AErrorCode.PERMISSION_DENIED,
+            message: "Execution does not belong to this agent",
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    // Calculate duration
+    const duration = execution.completedAt
+      ? execution.completedAt.getTime() - execution.startedAt.getTime()
+      : Date.now() - execution.startedAt.getTime();
+
+    // Return execution status
+    return NextResponse.json({
+      executionId: execution.id,
+      agentId: execution.agentId,
+      threadId: execution.threadId,
+      checkpointId: execution.checkpointId,
+      status: execution.status,
+      startedAt: execution.startedAt.toISOString(),
+      completedAt: execution.completedAt?.toISOString(),
+      duration,
+      progress: execution.progress,
+      error: execution.error,
+    });
+  } catch (error) {
+    console.error("Error in /status endpoint:", error);
+
+    return NextResponse.json(
+      {
+        error: {
+          code: A2AErrorCode.INTERNAL_ERROR,
+          message: error instanceof Error ? error.message : "Unknown error",
+        },
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * OPTIONS handler for CORS
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
+    },
+  });
+}
