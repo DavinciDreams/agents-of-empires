@@ -309,6 +309,8 @@ export function StructurePool({ onStructureClick, onStructureRightClick }: Struc
   const hoverStructureId = useGameStore((state) => state.hoverStructureId);
   const selectedAgentIds = useGameStore((state) => state.selectedAgentIds);
   const setHoveredStructure = useGameStore((state) => state.setHoveredStructure);
+  const victoryEffects = useGameStore((state) => state.victoryEffects.filter(e => e.type === 'goal'));
+  const removeVictoryEffect = useGameStore((state) => state.removeVictoryEffect);
 
   // Handle structure hover
   const handleStructureHover = useCallback((structureId: string | null) => {
@@ -331,6 +333,18 @@ export function StructurePool({ onStructureClick, onStructureRightClick }: Struc
           onClick={() => onStructureClick?.(structure.id, structure)}
         />
       ))}
+
+      {/* Goal completion victory effects */}
+      {victoryEffects.map((effect) => {
+        const { GoalCompletionFanfare } = require('@/app/components/a2ui/game/effects/VictoryEffects');
+        return (
+          <GoalCompletionFanfare
+            key={effect.id}
+            position={effect.position}
+            onComplete={() => removeVictoryEffect(effect.id)}
+          />
+        );
+      })}
     </>
   );
 }

@@ -6,6 +6,7 @@ import { Group, Vector3 } from "three";
 import { Text } from "@react-three/drei";
 import { useGameStore, useAgentsShallow, useDragonsShallow, type GameAgent, type Dragon as DragonType } from '@/app/components/a2ui/game/store';
 import { Object3DTooltip, DragonTooltipContent } from '@/app/components/a2ui/game/ui/Object3DTooltip';
+import { VictoryCelebration } from '@/app/components/a2ui/game/effects/VictoryEffects';
 
 // ============================================================================
 // Dragon Types Configuration
@@ -363,9 +364,17 @@ interface DragonPoolProps {
 
 export function DragonPool({ onDragonClick }: DragonPoolProps) {
   const dragonsMap = useDragonsShallow() as Record<string, DragonType>;
+  const allVictoryEffects = useGameStore((state) => state.victoryEffects);
+  const removeVictoryEffect = useGameStore((state) => state.removeVictoryEffect);
 
   // Convert object to array with memoization
   const dragons = useMemo(() => Object.values(dragonsMap), [dragonsMap]);
+
+  // Filter combat victory effects with memoization
+  const victoryEffects = useMemo(
+    () => allVictoryEffects.filter(e => e.type === 'combat'),
+    [allVictoryEffects]
+  );
 
   return (
     <>
@@ -374,6 +383,16 @@ export function DragonPool({ onDragonClick }: DragonPoolProps) {
           key={dragon.id}
           dragon={dragon}
           onDefeated={onDragonClick}
+        />
+      ))}
+
+      {/* Victory effects for combat */}
+      {victoryEffects.map((effect) => (
+        <VictoryCelebration
+          key={effect.id}
+          position={effect.position}
+          text="VICTORY!"
+          onComplete={() => removeVictoryEffect(effect.id)}
         />
       ))}
     </>
@@ -392,6 +411,7 @@ export function useCombat() {
   const damageDragon = useGameStore((state) => state.damageDragon);
   const removeDragon = useGameStore((state) => state.removeDragon);
   const setAgentState = useGameStore((state) => state.setAgentState);
+  const addVictoryEffect = useGameStore((state) => state.addVictoryEffect);
 
   // Agent attacks dragon
   const attackDragon = useCallback(
@@ -422,6 +442,9 @@ export function useCombat() {
           currentTask: "Victory!",
         });
 
+        // Trigger victory celebration effect
+        addVictoryEffect(dragon.position, 'combat');
+
         return { damage, defeated: true };
       }
 
@@ -440,7 +463,7 @@ export function useCombat() {
 
       return { damage, defeated: false, dragonDamage };
     },
-    [agentsMap, dragonsMap, damageDragon, removeDragon, setAgentState, updateAgent]
+    [agentsMap, dragonsMap, damageDragon, removeDragon, setAgentState, updateAgent, addVictoryEffect]
   );
 
   // Auto-resolve combat (simulated retry logic)

@@ -197,6 +197,14 @@ interface GameState {
   // Active goals
   activeGoalId: string | null;
 
+  // Victory Effects
+  victoryEffects: Array<{
+    id: string;
+    position: [number, number, number];
+    type: 'combat' | 'goal';
+    timestamp: number;
+  }>;
+
   // Agent Middleware Configuration
   backendConfig: {
     type: BackendType;
@@ -329,6 +337,10 @@ interface GameActions {
   // Goals
   setActiveGoal: (goalId: string | null) => void;
 
+  // Victory Effects
+  addVictoryEffect: (position: [number, number, number], type: 'combat' | 'goal') => string;
+  removeVictoryEffect: (id: string) => void;
+
   // Batch updates
   updateMultipleAgents: (updates: Array<{ id: string; changes: Partial<GameAgent> }>) => void;
 
@@ -380,6 +392,7 @@ export const useGameStore = create<GameStore>()(
     contextMenuPosition: null,
     contextMenuAgentId: null,
     activeGoalId: null,
+    victoryEffects: [],
     backendConfig: {
       type: "store",
       initialized: false,
@@ -1140,10 +1153,18 @@ export const useGameStore = create<GameStore>()(
   },
 
   completeQuest: (id) => {
+    const quest = get().quests[id];
     get().updateQuest(id, { status: "completed" });
 
+    // Trigger goal completion celebration
+    if (quest?.targetStructureId) {
+      const structure = get().structures[quest.targetStructureId];
+      if (structure) {
+        get().addVictoryEffect(structure.position, 'goal');
+      }
+    }
+
     // Check if this quest is part of a questline and advance it
-    const quest = get().quests[id];
     if (quest?.questlineId) {
       get().advanceQuestline(quest.questlineId);
     }
@@ -1312,6 +1333,26 @@ export const useGameStore = create<GameStore>()(
   // Goals
   setActiveGoal: (goalId) => {
     set({ activeGoalId: goalId });
+  },
+
+  // Victory Effects
+  addVictoryEffect: (position, type) => {
+    const id = `victory-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    set((state) => {
+      state.victoryEffects.push({
+        id,
+        position,
+        type,
+        timestamp: Date.now(),
+      });
+    });
+    return id;
+  },
+
+  removeVictoryEffect: (id) => {
+    set((state) => {
+      state.victoryEffects = state.victoryEffects.filter(effect => effect.id !== id);
+    });
   },
 
   // Batch updates
