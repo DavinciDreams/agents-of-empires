@@ -91,15 +91,17 @@ export function Tooltip({
     return styles;
   };
 
+  const childElement = children as React.ReactElement<any>;
+
   return (
     <>
-      {React.cloneElement(children as React.ReactElement, {
-        ...children.props,
+      {React.cloneElement(childElement, {
+        ...childElement.props,
         onMouseEnter: handleMouseEnter,
         onMouseLeave: handleMouseLeave,
         onMouseMove: handleMouseMove,
         ref: childRef,
-      })}
+      } as any)}
       <AnimatePresence>
         {isVisible && (
           <motion.div

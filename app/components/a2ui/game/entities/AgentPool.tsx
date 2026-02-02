@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useGameStore, type GameAgent } from '@/components/a2ui/game/store';
-import { useAgentBridgeContext } from '@/components/a2ui/game/bridge/AgentBridge';
+import { useGameStore, type GameAgent } from '@/app/components/a2ui/game/store';
+import { useAgentBridgeContext } from '@/app/components/a2ui/game/bridge/AgentBridge';
 
 // ============================================================================
 // Agent Pool Manager
@@ -137,9 +137,9 @@ export function InitialAgents({ count = 100 }: InitialAgentsProps) {
 
     // Add default tools to agents
     const defaultTools = [
-      { id: "search", name: "Search", type: "search" as const, icon: "🔍", description: "Search web", rarity: "common" as const },
-      { id: "read", name: "File Reader", type: "file_reader" as const, icon: "📜", description: "Read files", rarity: "common" as const },
-      { id: "code", name: "Code Executor", type: "code_executor" as const, icon: "🔨", description: "Execute code", rarity: "common" as const },
+      { id: "search", name: "Search", type: "search" as const, icon: "🔍", description: "Search web", rarity: "common" as const, cooldownTime: 3000, mastery: 0, experience: 0 },
+      { id: "read", name: "File Reader", type: "file_reader" as const, icon: "📜", description: "Read files", rarity: "common" as const, cooldownTime: 2000, mastery: 0, experience: 0 },
+      { id: "code", name: "Code Executor", type: "code_executor" as const, icon: "🔨", description: "Execute code", rarity: "common" as const, cooldownTime: 5000, mastery: 0, experience: 0 },
     ];
 
     // Spawn initial agents with Deep Agent instances - with delay to prevent blocking

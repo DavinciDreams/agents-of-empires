@@ -37,11 +37,13 @@ const middleware = composeMiddleware(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   const startTime = Date.now();
 
   try {
+    const { agentId } = await params;
+
     // Apply middleware
     const middlewareResponse = await middleware(req);
     if (middlewareResponse) {
@@ -64,7 +66,7 @@ export async function POST(
           },
           metadata: {
             executionTime: Date.now() - startTime,
-            agentId: params.agentId,
+            agentId: agentId,
             startedAt: new Date().toISOString(),
             completedAt: new Date().toISOString(),
           },
@@ -77,7 +79,7 @@ export async function POST(
 
     // Get agent from registry (with caching)
     const registry = AgentRegistry.getInstance();
-    const agent = await registry.getAgent(params.agentId);
+    const agent = await registry.getAgent(agentId);
 
     // Generate thread ID if not provided
     const threadId =
@@ -87,7 +89,7 @@ export async function POST(
     // Track execution
     const tracker = ExecutionTracker.getInstance();
     const execution = tracker.startExecution(
-      params.agentId,
+      agentId,
       threadId,
       a2aRequest
     );
@@ -95,7 +97,7 @@ export async function POST(
     try {
       // Wrap agent with A2A protocol
       const wrapper = new A2AWrapper(agent, {
-        agentId: params.agentId,
+        agentId: agentId,
         verbose: process.env.NODE_ENV === "development",
       });
 
@@ -128,6 +130,14 @@ export async function POST(
   } catch (error) {
     console.error("Error in /invoke endpoint:", error);
 
+    // Extract agentId from params (might not be available if error occurred early)
+    let agentId: string | undefined;
+    try {
+      agentId = (await params).agentId;
+    } catch {
+      agentId = undefined;
+    }
+
     return NextResponse.json(
       {
         status: "error",
@@ -137,7 +147,7 @@ export async function POST(
         },
         metadata: {
           executionTime: Date.now() - startTime,
-          agentId: params.agentId,
+          agentId: agentId,
           startedAt: new Date().toISOString(),
           completedAt: new Date().toISOString(),
         },

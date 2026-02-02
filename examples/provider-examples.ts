@@ -250,7 +250,7 @@ export function checkAvailableProviders() {
   const available = getAvailableProviders();
 
   console.log("Available providers:");
-  available.forEach((provider) => {
+  available.forEach((provider: string) => {
     const meta = PROVIDER_METADATA[provider];
     console.log(`- ${meta.name}: ${meta.description}`);
     console.log(`  Features: ${meta.features.join(", ")}`);

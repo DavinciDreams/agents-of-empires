@@ -184,7 +184,7 @@ export function A2UIStreamRenderer({
    * Expose handleMessage for parent components
    */
   React.useImperativeHandle(
-    React.useRef<any>(),
+    React.useRef<any>(null),
     () => ({
       handleMessage,
       clear: () => {

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import type { Tool, ToolType, Rarity } from '@/components/a2ui/game/store';
+import type { Tool, ToolType, Rarity } from '@/app/components/a2ui/game/store';
+import { useGameStore } from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Tool Type Configuration
@@ -141,8 +142,23 @@ export function ToolCard({
 }: ToolCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [cooldownPercent, setCooldownPercent] = useState(0);
   const typeConfig = TOOL_TYPE_CONFIG[tool.type];
   const rarityConfig = RARITY_CONFIG[tool.rarity];
+  const getToolCooldownPercent = useGameStore((state) => state.getToolCooldownPercent);
+  const isToolOnCooldown = useGameStore((state) => state.isToolOnCooldown);
+
+  // Update cooldown indicator every 100ms
+  useEffect(() => {
+    if (!tool.cooldownTime) return;
+
+    const interval = setInterval(() => {
+      const percent = getToolCooldownPercent(tool);
+      setCooldownPercent(percent);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [tool, getToolCooldownPercent]);
 
   const handleClick = () => {
     if (isDragging) return;
@@ -207,6 +223,65 @@ export function ToolCard({
         </div>
       )}
 
+      {/* Cooldown overlay */}
+      {cooldownPercent > 0 && (
+        <div className="absolute inset-0 pointer-events-none">
+          {/* Dark overlay */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+          {/* Cooldown progress arc */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+            <circle
+              cx="50"
+              cy="50"
+              r="45"
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.1)"
+              strokeWidth="8"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="45"
+              fill="none"
+              stroke={rarityConfig.color}
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={`${283 * (cooldownPercent / 100)} 283`}
+              transform="rotate(-90 50 50)"
+              style={{
+                filter: `drop-shadow(0 0 8px ${rarityConfig.glowColor})`,
+              }}
+            />
+          </svg>
+
+          {/* Cooldown text */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-white">
+                {Math.ceil((cooldownPercent / 100) * (tool.cooldownTime || 0) / 1000)}s
+              </div>
+              <div className="text-xs text-gray-300">Cooldown</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mastery indicator */}
+      {tool.mastery !== undefined && tool.mastery > 0 && (
+        <div
+          className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold flex items-center gap-1"
+          style={{
+            backgroundColor: "rgba(26, 26, 46, 0.9)",
+            border: `1px solid ${rarityConfig.color}`,
+            color: rarityConfig.color,
+          }}
+        >
+          <span>⭐</span>
+          <span>{tool.mastery}</span>
+        </div>
+      )}
+
       {/* Rarity shine effect for legendary/epic */}
       {(tool.rarity === "legendary" || tool.rarity === "epic") && (
         <div
@@ -245,6 +320,30 @@ export function ToolCard({
             <span className="text-xs text-gray-300">
               Power: <span className="font-bold text-yellow-400">{tool.power}</span>
             </span>
+          </div>
+        )}
+
+        {/* Mastery and Experience */}
+        {tool.mastery !== undefined && tool.mastery > 0 && (
+          <div className="space-y-1 mb-2">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400">Mastery:</span>
+              <span className="text-xs font-bold" style={{ color: rarityConfig.color }}>
+                Level {tool.mastery}
+              </span>
+            </div>
+            {tool.experience !== undefined && (
+              <div className="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${((tool.experience % 100) / 100) * 100}%`,
+                    backgroundColor: rarityConfig.color,
+                    boxShadow: `0 0 8px ${rarityConfig.glowColor}`,
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 

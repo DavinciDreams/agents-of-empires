@@ -4,7 +4,7 @@ import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Vector3, Color, Object3D, InstancedMesh, BufferGeometry, Float32BufferAttribute } from "three";
 import { Text } from "@react-three/drei";
-import { useGameStore, useAgentsShallow, type AgentState, type GameAgent as GameAgentType } from '@/components/a2ui/game/store';
+import { useGameStore, useAgentsShallow, type AgentState, type GameAgent as GameAgentType } from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Agent State Visual Configurations

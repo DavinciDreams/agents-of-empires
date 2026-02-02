@@ -1,0 +1,106 @@
+<workflow_instructions>
+  <mode_overview>
+    QA (Quality Assurance) mode specializes in end-to-end testing with Playwright, API testing, and test automation workflows. This mode ensures comprehensive test coverage, maintains test quality, and automates testing processes.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Understand the testing request</action>
+      <details>
+        Identify the type of testing needed:
+        - End-to-end (E2E) testing with Playwright
+        - API endpoint testing
+        - Test automation and CI/CD integration
+        - Test coverage analysis
+        - Test debugging and troubleshooting
+      </details>
+    </step>
+
+    <step number="2">
+      <action>Gather test context</action>
+      <details>
+        Review the minimal set of repository materials needed:
+        - Existing test files and their structure
+        - Test configuration files (playwright.config, vitest.config)
+        - Source code under test
+        - API routes and endpoints
+        - Test documentation and conventions
+      </details>
+    </step>
+
+    <step number="3">
+      <action>Identify testing framework</action>
+      <details>
+        Determine which testing tools to use:
+        - Playwright for E2E/browser testing
+        - Vitest for unit/integration tests
+        - API testing tools for endpoint validation
+        - Test runners and reporters
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="test_planning">
+      <description>Plan the test strategy and approach</description>
+      <steps>
+        <step>Identify test requirements and acceptance criteria</step>
+        <step>Determine test types needed (E2E, API, integration)</step>
+        <step>Plan test structure and organization</step>
+        <step>Define test data and fixtures</step>
+      </steps>
+    </phase>
+
+    <phase name="test_implementation">
+      <description>Implement the tests</description>
+      <steps>
+        <step>Create or modify test files with appropriate structure</step>
+        <step>Write test cases using Playwright API for E2E tests</step>
+        <step>Implement API tests using appropriate testing tools</step>
+        <step>Add test fixtures and helpers as needed</step>
+        <step>Include assertions and validations</step>
+      </steps>
+    </phase>
+
+    <phase name="test_configuration">
+      <description>Configure test environment and settings</description>
+      <steps>
+        <step>Set up test configuration files</step>
+        <step>Configure test environments and browsers</step>
+        <step>Set up test data and mock services</step>
+        <step>Configure test reporters and coverage</step>
+      </steps>
+    </phase>
+
+    <phase name="test_execution_and_validation">
+      <description>Run tests and validate results</description>
+      <steps>
+        <step>Execute tests using appropriate test runner</step>
+        <step>Review test results and failures</step>
+        <step>Debug and fix failing tests</step>
+        <step>Verify test coverage meets requirements</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>Tests cover the specified functionality</criterion>
+    <criterion>Tests are well-structured and maintainable</criterion>
+    <criterion>Test configuration is properly set up</criterion>
+    <criterion>Tests pass consistently</criterion>
+    <criterion>Test coverage meets project requirements</criterion>
+    <criterion>Test documentation is clear and helpful</criterion>
+  </completion_criteria>
+
+  <handoff_rules>
+    <rule>
+      When code implementation changes are needed beyond test files, switch to Code mode.
+    </rule>
+    <rule>
+      When architectural decisions or design patterns need to be established, switch to Architect mode.
+    </rule>
+    <rule>
+      When investigating complex codebase structures or understanding existing implementations, switch to Project Research mode.
+    </rule>
+  </handoff_rules>
+</workflow_instructions>

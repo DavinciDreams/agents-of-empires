@@ -4,7 +4,6 @@
  * Wraps a DeepAgent (LangGraph graph) to handle A2A protocol requests and responses.
  */
 
-import type { CompiledStateGraph } from "@langchain/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import type {
   A2ARequest,
@@ -13,7 +12,7 @@ import type {
   A2AMetadata,
   A2AStreamEvent,
 } from "../types/a2a";
-import { A2AErrorCode } from "../types/a2a";
+import { A2AErrorCode, A2AStreamEventType } from "../types/a2a";
 import { transformToA2AResult, transformStreamEvent } from "./transformers";
 
 /**
@@ -39,10 +38,10 @@ export interface A2AWrapperConfig {
  * Provides A2A protocol compatibility for LangGraph-based DeepAgents.
  */
 export class A2AWrapper {
-  private agent: CompiledStateGraph;
+  private agent: any;
   private config: Required<A2AWrapperConfig>;
 
-  constructor(agent: CompiledStateGraph, config: A2AWrapperConfig) {
+  constructor(agent: any, config: A2AWrapperConfig) {
     this.agent = agent;
     this.config = {
       agentId: config.agentId,
@@ -84,7 +83,7 @@ export class A2AWrapper {
       );
 
       // Transform result to A2A response
-      const a2aResult = transformToA2AResult(result);
+      const a2aResult = transformToA2AResult(result as Record<string, unknown>);
 
       // Build response
       const response: A2AResponse = {
@@ -140,7 +139,7 @@ export class A2AWrapper {
 
       // Emit start event
       yield {
-        type: "start" as const,
+        type: A2AStreamEventType.START,
         data: { threadId: runConfig.configurable.thread_id },
         timestamp: new Date().toISOString(),
       };
@@ -161,7 +160,7 @@ export class A2AWrapper {
 
       // Emit end event
       yield {
-        type: "end" as const,
+        type: A2AStreamEventType.END,
         data: { duration: Date.now() - startTime },
         timestamp: new Date().toISOString(),
       };
@@ -172,7 +171,7 @@ export class A2AWrapper {
 
       // Emit error event
       yield {
-        type: "error" as const,
+        type: A2AStreamEventType.ERROR,
         data: this.transformError(error),
         timestamp: new Date().toISOString(),
       };
@@ -301,7 +300,7 @@ export class A2AWrapper {
   /**
    * Get the wrapped agent
    */
-  getAgent(): CompiledStateGraph {
+  getAgent(): any {
     return this.agent;
   }
 

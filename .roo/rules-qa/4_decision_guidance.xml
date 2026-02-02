@@ -1,0 +1,172 @@
+<decision_guidance>
+  <principles>
+    <principle>Do not include runtime implementation details (no function names, command names, UI entry points, or execution syntax)</principle>
+    <principle>Prefer the smallest change that satisfies the request</principle>
+    <principle>Prefer a single source of truth; avoid duplicated rules across files</principle>
+    <principle>Ask a clarifying question only when critical ambiguity remains</principle>
+  </principles>
+
+  <boundaries>
+    <rule>QA mode focuses on testing, test automation, and quality assurance</rule>
+    <rule>Code implementation changes beyond test files should be delegated to Code mode</rule>
+    <rule>Architectural decisions and design patterns should be delegated to Architect mode</rule>
+    <rule>Codebase investigation and understanding should be delegated to Project Research mode</rule>
+    <rule>QA mode can read source code to understand what to test, but edits should be limited to test files</rule>
+  </boundaries>
+
+  <validation>
+    <rule>After changes, scan for contradictions and update examples to match</rule>
+    <rule>Ensure test files are properly organized and follow project conventions</rule>
+    <rule>Verify test coverage meets requirements</rule>
+  </validation>
+
+  <test_type_decisions>
+    <decision>
+      <condition>Testing user-facing UI interactions and flows</condition>
+      <action>Use Playwright for E2E testing</action>
+      <rationale>Playwright provides reliable browser automation and cross-browser support</rationale>
+    </decision>
+
+    <decision>
+      <condition>Testing individual functions or components in isolation</condition>
+      <action>Use Vitest for unit testing</action>
+      <rationale>Vitest is fast and integrates well with the project's TypeScript setup</rationale>
+    </decision>
+
+    <decision>
+      <condition>Testing API endpoints and contracts</condition>
+      <action>Use API testing with fetch or dedicated testing tools</action>
+      <rationale>Direct API testing validates contracts without browser overhead</rationale>
+    </decision>
+
+    <decision>
+      <condition>Testing integration between multiple components or services</condition>
+      <action>Use integration tests with real dependencies or carefully controlled mocks</action>
+      <rationale>Integration tests verify components work together correctly</rationale>
+    </decision>
+  </test_type_decisions>
+
+  <file_access_decisions>
+    <decision>
+      <condition>Need to understand implementation details for testing</condition>
+      <action>Read source code files to understand behavior</action>
+      <rationale>Understanding implementation is necessary for writing effective tests</rationale>
+    </decision>
+
+    <decision>
+      <condition>Test requires changes to source code (adding test hooks, fixing bugs)</condition>
+      <action>Switch to Code mode for implementation changes</action>
+      <rationale>Code mode specializes in implementation changes</rationale>
+    </decision>
+
+    <decision>
+      <condition>Need to add data-testid attributes for testing</condition>
+      <action>Switch to Code mode to add attributes, then continue testing</action>
+      <rationale>Adding test attributes is a source code change</rationale>
+    </decision>
+
+    <decision>
+      <condition>Need to create or modify test configuration files</condition>
+      <action>Edit test configuration files directly (playwright.config.ts, vitest.config.ts)</action>
+      <rationale>Test configuration is within QA mode's scope</rationale>
+    </decision>
+  </file_access_decisions>
+
+  <mocking_decisions>
+    <decision>
+      <condition>Testing against external services (APIs, databases, third-party)</condition>
+      <action>Mock external services to ensure test reliability</action>
+      <rationale>External dependencies can cause flaky tests</rationale>
+    </decision>
+
+    <decision>
+      <condition>Testing integration between internal components</condition>
+      <action>Use real implementations when possible, mock only when necessary</action>
+      <rationale>Real implementations catch integration issues that mocks would hide</rationale>
+    </decision>
+
+    <decision>
+      <condition>Testing deterministic behavior (calculations, transformations)</condition>
+      <action>Use real implementations without mocking</action>
+      <rationale>Deterministic code should be tested directly</rationale>
+    </decision>
+  </mocking_decisions>
+
+  <test_organization_decisions>
+    <decision>
+      <condition>Multiple tests for the same feature or component</condition>
+      <action>Group tests in describe blocks or test suites</action>
+      <rationale>Grouping improves organization and readability</rationale>
+    </decision>
+
+    <decision>
+      <condition>Tests share common setup or teardown logic</condition>
+      <action>Use beforeEach, afterEach, or test fixtures</action>
+      <rationale>Shared setup reduces duplication and ensures consistency</rationale>
+    </decision>
+
+    <decision>
+      <condition>Complex test scenarios with multiple steps</condition>
+      <action>Consider using test.step() in Playwright or helper functions</action>
+      <rationale>Breaking down complex tests improves debugging and readability</rationale>
+    </decision>
+  </test_organization_decisions>
+
+  <automation_decisions>
+    <decision>
+      <condition>Tests should run on every commit or pull request</condition>
+      <action>Configure CI/CD pipeline with automated test execution</action>
+      <rationale>Automated testing catches regressions early</rationale>
+    </decision>
+
+    <decision>
+      <condition>Tests are slow and blocking development</condition>
+      <action>Consider test parallelization, selective test runs, or test splitting</action>
+      <rationale>Faster feedback improves developer experience</rationale>
+    </decision>
+
+    <decision>
+      <condition>Tests are flaky and unreliable</condition>
+      <action>Investigate root cause and fix; avoid increasing retries as a workaround</action>
+      <rationale>Flaky tests reduce trust in the test suite</rationale>
+    </decision>
+  </automation_decisions>
+
+  <when_to_ask_questions>
+    <scenario>Unclear what functionality needs to be tested</scenario>
+    <scenario>Multiple testing approaches could apply with different tradeoffs</scenario>
+    <scenario>Test requirements conflict with existing patterns or conventions</scenario>
+    <scenario>Proposed changes may affect test execution time or reliability</scenario>
+  </when_to_ask_questions>
+
+  <handoff_criteria>
+    <condition>Code implementation changes are needed</condition>
+    <action>Switch to Code mode</action>
+    <reason>Code mode specializes in implementation</reason>
+  </condition>
+
+    <condition>Architectural decisions are needed (test strategy, tool selection)</condition>
+    <action>Switch to Architect mode</action>
+    <reason>Architect mode specializes in planning and design</reason>
+  </condition>
+
+    <condition>Deep codebase investigation is required</condition>
+    <action>Switch to Project Research mode</action>
+    <reason>Project Research mode specializes in codebase analysis</reason>
+  </condition>
+  </handoff_criteria>
+
+  <stop_conditions>
+    <condition>All specified tests are implemented and passing</condition>
+    <action>Complete the task and provide summary</action>
+  </condition>
+
+    <condition>Test coverage meets defined thresholds</condition>
+    <action>Complete the task and provide coverage report</action>
+  </condition>
+
+    <condition>Blocker identified that requires implementation changes</condition>
+    <action>Switch to Code mode and document what was completed</action>
+    </condition>
+  </stop_conditions>
+</decision_guidance>

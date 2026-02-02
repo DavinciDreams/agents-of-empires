@@ -3,7 +3,7 @@
 import { useRef, useCallback, useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import { Vector2, Vector3, Raycaster, Plane, Camera, Sphere } from "three";
-import { useGameStore, useAgentsShallow, useStructuresShallow, type GameAgent, type Structure } from '@/components/a2ui/game/store';
+import { useGameStore, useAgentsShallow, useStructuresShallow, type GameAgent, type Structure } from '@/app/components/a2ui/game/store';
 
 // Get selectedAgentIds from store for checking selection state
 const getSelectedAgentIds = () => useGameStore.getState().selectedAgentIds;

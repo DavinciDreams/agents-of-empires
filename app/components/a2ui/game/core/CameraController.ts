@@ -12,7 +12,7 @@ import {
   useCameraElevationTarget,
   useSetCameraRotation,
   useSetCameraElevation,
-} from '@/components/a2ui/game/store';
+} from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Camera Controller Hook

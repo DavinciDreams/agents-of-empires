@@ -1,9 +1,9 @@
 import { useRef, useCallback, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
-import { useGameStore, useAgentsShallow, useDragonsShallow, useQuestsShallow, useTilesShallow, type AgentState, type GameAgent, type Dragon, type Quest } from '@/components/a2ui/game/store';
-import { useCombat } from '@/components/a2ui/game/entities/Dragon';
-import { findPath } from '@/components/a2ui/game/world/WorldManager';
+import { useGameStore, useAgentsShallow, useDragonsShallow, useQuestsShallow, useTilesShallow, type AgentState, type GameAgent, type Dragon, type Quest } from '@/app/components/a2ui/game/store';
+import { useCombat } from '@/app/components/a2ui/game/entities/Dragon';
+import { findPath } from '@/app/components/a2ui/game/world/WorldManager';
 
 // ============================================================================
 // Game Configuration

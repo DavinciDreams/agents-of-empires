@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useGameStore, useTilesShallow, type Tile, type TileType } from '@/components/a2ui/game/store';
+import { useGameStore, useTilesShallow, type Tile, type TileType } from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Terrain Generation Types

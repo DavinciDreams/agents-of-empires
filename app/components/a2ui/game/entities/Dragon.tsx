@@ -4,8 +4,8 @@ import { useRef, useMemo, useCallback, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Vector3 } from "three";
 import { Text } from "@react-three/drei";
-import { useGameStore, useAgentsShallow, useDragonsShallow, type GameAgent, type Dragon as DragonType } from '@/components/a2ui/game/store';
-import { Object3DTooltip, DragonTooltipContent } from '@/components/a2ui/game/ui/Object3DTooltip';
+import { useGameStore, useAgentsShallow, useDragonsShallow, type GameAgent, type Dragon as DragonType } from '@/app/components/a2ui/game/store';
+import { Object3DTooltip, DragonTooltipContent } from '@/app/components/a2ui/game/ui/Object3DTooltip';
 
 // ============================================================================
 // Dragon Types Configuration

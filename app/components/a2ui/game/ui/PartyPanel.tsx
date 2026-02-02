@@ -10,7 +10,7 @@ import {
   type Party,
   type GameAgent,
   type FormationType,
-} from '@/components/a2ui/game/store';
+} from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // PartyPanel Component

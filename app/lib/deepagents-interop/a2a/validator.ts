@@ -10,7 +10,7 @@ import type { A2ARequest, A2AResponse } from "../types/a2a";
  */
 export const A2ARequestSchema = z.object({
   task: z.string().min(1, "Task cannot be empty"),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
   config: z
     .object({
       recursionLimit: z.number().int().positive().max(200).optional(),
@@ -36,7 +36,7 @@ export function validateA2ARequest(
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.errors.map((err) => `${err.path.join(".")}: ${err.message}`),
+        errors: error.issues.map((err) => `${err.path.join(".")}: ${err.message}`),
       };
     }
 

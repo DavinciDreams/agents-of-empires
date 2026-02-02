@@ -3,7 +3,7 @@
 import { useMemo, useRef, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { InstancedMesh, Vector3, Color, Object3D } from "three";
-import { useGameStore, useTilesShallow } from '@/components/a2ui/game/store';
+import { useGameStore, useTilesShallow } from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Types

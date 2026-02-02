@@ -8,7 +8,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { A2UIRenderer, useA2UIStream } from "@/components/a2ui/A2UIRenderer";
+import { A2UIRenderer, useA2UIStream } from "@/app/components/a2ui/A2UIRenderer";
 
 /**
  * Example 1: Simple A2UI Streaming Component

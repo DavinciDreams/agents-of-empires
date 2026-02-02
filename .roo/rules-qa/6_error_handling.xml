@@ -1,0 +1,402 @@
+<error_handling>
+  <overview>
+    Guidance for handling common errors and issues encountered during testing, test automation, and quality assurance workflows.
+  </overview>
+
+  <common_test_errors>
+    <error type="timeout">
+      <description>Test fails due to timeout waiting for an element or condition</description>
+      <causes>
+        <cause>Element takes longer to appear than expected</cause>
+        <cause>Network request is slow or pending</cause>
+        <cause>Application is still loading/rendering</cause>
+        <cause>Element selector is incorrect or matches multiple elements</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Check if the element actually exists on the page</step>
+        <step>Verify the selector is correct and specific enough</step>
+        <step>Look for loading states that need to complete first</step>
+        <step>Check browser console for JavaScript errors</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Use explicit waits for loading states to complete</solution>
+        <solution>Use more specific selectors (data-testid over CSS)</solution>
+        <solution>Increase timeout only if genuinely needed, not as a workaround</solution>
+        <solution>Check for race conditions and add appropriate waits</solution>
+      </solutions>
+      <example>
+        <code>
+// Before (flaky)
+await page.click('button.submit');
+
+// After (reliable)
+await page.getByTestId('submit-button').click();
+await expect(page.getByTestId('success-message')).toBeVisible();
+        </code>
+      </example>
+    </error>
+
+    <error type="element_not_found">
+      <description>Test fails because selector doesn't match any element</description>
+      <causes>
+        <cause>Element doesn't exist in the current state</cause>
+        <cause>Selector is incorrect or has changed</cause>
+        <cause>Element is inside a different frame or shadow DOM</cause>
+        <cause>Page hasn't fully loaded or navigated</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Inspect the page to verify element exists</step>
+        <step>Test the selector in browser DevTools</step>
+        <step>Check if element is inside an iframe or shadow root</step>
+        <step>Verify the page URL is correct</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Use data-testid attributes for stable selectors</solution>
+        <solution>Wait for navigation or page load to complete</solution>
+        <solution>Handle frames and shadow DOM appropriately</solution>
+        <solution>Check element visibility and accessibility</solution>
+      </solutions>
+      <example>
+        <code>
+// Before (brittle)
+await page.locator('.btn-primary').click();
+
+// After (stable)
+await page.getByTestId('submit-button').click();
+        </code>
+      </example>
+    </error>
+
+    <error type="assertion_failure">
+      <description>Test assertion fails due to unexpected value or state</description>
+      <causes>
+        <cause>Application behavior has changed</cause>
+        <cause>Test expectation is incorrect</cause>
+        <cause>Timing issue causing stale data</cause>
+        <cause>Test data setup is incorrect</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Verify the actual value being asserted</step>
+        <step>Check application behavior manually</step>
+        <step>Review recent code changes that might affect behavior</step>
+        <step>Verify test data and setup</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Update test expectations to match new behavior</solution>
+        <solution>Fix application bug if behavior is incorrect</solution>
+        <solution>Add waits or refresh to get fresh data</solution>
+        <solution>Review and update test data</solution>
+      </solutions>
+      <example>
+        <code>
+// Debugging assertion failure
+const actualValue = await page.getByTestId('status').textContent();
+console.log('Actual status:', actualValue); // Debug output
+expect(actualValue).toBe('running');
+        </code>
+      </example>
+    </error>
+
+    <error type="flaky_test">
+      <description>Test passes sometimes and fails other times without code changes</description>
+      <causes>
+        <cause>Race condition in application or test</cause>
+        <cause>Dependency on external services with variable response times</cause>
+        <cause>Tests running in parallel and interfering with each other</cause>
+        <cause>Timing-dependent assertions without proper waits</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Run test multiple times to identify pattern</step>
+        <step>Check for shared state between tests</step>
+        <step>Review external service dependencies</step>
+        <step>Look for timing-related code in tests</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Isolate tests to prevent interference</solution>
+        <solution>Add proper waits instead of arbitrary timeouts</solution>
+        <solution>Mock external services for reliability</solution>
+        <solution>Use test transactions and cleanup</solution>
+      </solutions>
+      <example>
+        <code>
+// Before (flaky - tests interfere)
+test('creates agent', async () => {
+  const agent = await createAgent();
+  expect(agent.id).toBeTruthy();
+});
+
+test('lists agents', async () => {
+  const agents = await listAgents();
+  expect(agents).toContain(agent.id); // agent from previous test!
+});
+
+// After (isolated)
+test('creates agent', async () => {
+  const agent = await createAgent();
+  expect(agent.id).toBeTruthy();
+  await cleanupAgent(agent.id); // Cleanup
+});
+
+test('lists agents', async () => {
+  const agents = await listAgents();
+  expect(agents.length).toBeGreaterThan(0);
+});
+        </code>
+      </example>
+    </error>
+  </common_test_errors>
+
+  <api_test_errors>
+    <error type="network_error">
+      <description>API test fails due to network issues or server not running</description>
+      <causes>
+        <cause>Test server not started</cause>
+        <cause>Wrong port or URL configured</cause>
+        <cause>Firewall or network configuration blocking requests</cause>
+        <cause>Server crashed during test execution</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Verify server is running on expected port</step>
+        <step>Check server logs for errors</step>
+        <step>Test URL manually in browser or curl</step>
+        <step>Verify network configuration</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Start test server before running tests</solution>
+        <solution>Configure correct base URL in test setup</solution>
+        <solution>Add server health check in test setup</solution>
+        <solution>Use test containers or Docker for consistent environment</solution>
+      </solutions>
+      <example>
+        <code>
+// Add health check before tests
+beforeAll(async () => {
+  // Wait for server to be ready
+  let retries = 10;
+  while (retries > 0) {
+    try {
+      await fetch('http://localhost:3000/health');
+      break;
+    } catch {
+      retries--;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  if (retries === 0) {
+    throw new Error('Server failed to start');
+  }
+});
+        </code>
+      </example>
+    </error>
+
+    <error type="authentication_error">
+      <description>API test fails due to authentication issues</description>
+      <causes>
+        <cause>Missing or invalid auth token</cause>
+        <cause>Token expired during test execution</cause>
+        <cause>Auth headers not properly configured</cause>
+        <cause>User permissions insufficient for operation</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Check if auth token is being sent</step>
+        <step>Verify token is valid and not expired</step>
+        <step>Review API authentication requirements</step>
+        <step>Check user permissions for requested operation</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Implement proper token refresh logic</solution>
+        <solution>Create test users with appropriate permissions</solution>
+        <solution>Use test fixtures for consistent auth setup</solution>
+        <solution>Verify auth header configuration in test client</solution>
+      </solutions>
+      <example>
+        <code>
+// Auth fixture with token refresh
+export async function getAuthClient() {
+  let token = await getTestToken();
+  const client = createApiClient(token);
+
+  // Intercept 401 responses and refresh token
+  client.interceptors.response.use(async (response) => {
+    if (response.status === 401) {
+      token = await refreshTestToken();
+      client.setToken(token);
+    }
+    return response;
+  });
+
+  return client;
+}
+        </code>
+      </example>
+    </error>
+
+    <error type="validation_error">
+      <description>API returns validation errors for test data</description>
+      <causes>
+        <cause>Test data doesn't match expected schema</cause>
+        <cause>Required fields are missing</cause>
+        <cause>Data types are incorrect</cause>
+        <cause>Business rules reject the data</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Review API validation error message</step>
+        <step>Check test data against API schema</step>
+        <step>Verify all required fields are present</step>
+        <step>Review business rule documentation</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Fix test data to match expected schema</solution>
+        <solution>Add missing required fields</solution>
+        <solution>Update test to use valid data types</solution>
+        <solution>Adjust test to respect business rules</solution>
+      </solutions>
+      <example>
+        <code>
+// Test data with validation
+const validAgentData = {
+  name: 'Test Agent', // Required
+  description: 'A test agent', // Optional
+  config: {}, // Optional
+};
+
+const invalidAgentData = {
+  description: 'Missing required name field', // Will fail validation
+};
+
+test('rejects agent without name', async () => {
+  const response = await fetch('/api/agents', {
+    method: 'POST',
+    body: JSON.stringify(invalidAgentData),
+  });
+  expect(response.status).toBe(400);
+});
+        </code>
+      </example>
+    </error>
+  </api_test_errors>
+
+  <automation_errors>
+    <error type="ci_failure">
+      <description>Tests fail in CI but pass locally</description>
+      <causes>
+        <cause>Environment differences (OS, browser versions)</cause>
+        <cause>Missing dependencies or configuration</cause>
+        <cause>Timing differences in CI environment</cause>
+        <cause>Resource constraints in CI</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Review CI logs for specific error messages</step>
+        <step>Compare CI and local environments</step>
+        <step>Check for missing setup steps in CI</step>
+        <step>Review resource usage in CI</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Configure CI to match local environment</solution>
+        <solution>Add missing dependency installation steps</solution>
+        <solution>Increase timeouts for CI environment</solution>
+        <solution>Use matrix testing for multiple environments</solution>
+      </solutions>
+      <example>
+        <code>
+# GitHub Actions with environment setup
+- name: Install dependencies
+  run: pnpm install --frozen-lockfile
+
+- name: Install Playwright browsers
+  run: pnpm exec playwright install --with-deps
+
+- name: Run tests with CI-specific config
+  run: pnpm test:e2e
+  env:
+    CI: true
+    # Increase timeout for CI
+    PLAYWRIGHT_TIMEOUT: 60000
+        </code>
+      </example>
+    </error>
+
+    <error type="coverage_below_threshold">
+      <description>Test coverage doesn't meet configured thresholds</description>
+      <causes>
+        <cause>New code added without tests</cause>
+        <cause>Tests don't exercise all code paths</cause>
+        <cause>Thresholds set too high</cause>
+        <cause>Configuration excludes necessary files</cause>
+      </causes>
+      <diagnosis_steps>
+        <step>Review coverage report to identify uncovered areas</step>
+        <step>Check if coverage configuration is correct</step>
+        <step>Verify thresholds are appropriate for project</step>
+        <step>Review new code changes for missing tests</step>
+      </diagnosis_steps>
+      <solutions>
+        <solution>Add tests for uncovered code paths</solution>
+        <solution>Adjust thresholds if unrealistic</solution>
+        <solution>Update coverage configuration to include/exclude correct files</solution>
+        <solution>Refactor code to improve testability</solution>
+      </solutions>
+      <example>
+        <code>
+// Coverage configuration
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
+      },
+      // Exclude test files and config from coverage
+      exclude: [
+        'node_modules/',
+        '**/*.test.{ts,tsx}',
+        '**/*.config.{ts,js}',
+      ],
+    },
+  },
+});
+        </code>
+      </example>
+    </error>
+  </automation_errors>
+
+  <recovery_strategies>
+    <strategy name="incremental_debugging">
+      <description>Debug tests by adding logging and running in isolation</description>
+      <steps>
+        <step>Run the failing test in isolation to confirm the issue</step>
+        <step>Add console.log or debug output at key points</step>
+        <step>Use test runner's debug mode for step-by-step execution</step>
+        <step>Take screenshots or snapshots at failure points</step>
+        <step>Fix issues incrementally and re-run after each change</step>
+      </steps>
+    </strategy>
+
+    <strategy name="test_isolation">
+      <description>Ensure tests don't interfere with each other</description>
+      <steps>
+        <step>Run tests in random order to catch dependencies</step>
+        <step>Use test transactions and cleanup in afterEach</step>
+        <step>Verify tests use unique test data</step>
+        <step>Check for shared state or global variables</step>
+        <step>Consider running tests in parallel vs serial</step>
+      </steps>
+    </strategy>
+
+    <strategy name="environment_consistency">
+      <description>Ensure test environment matches production</description>
+      <steps>
+        <step>Use same database schema and migrations</step>
+        <step>Match environment variables and configuration</step>
+        <step>Use same versions of dependencies</step>
+        <step>Test in multiple browsers and viewports</step>
+        <step>Consider using containerized test environments</step>
+      </steps>
+    </strategy>
+  </recovery_strategies>
+</error_handling>

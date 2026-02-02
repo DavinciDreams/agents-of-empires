@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, createContext, useContext } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { useGameStore, type GameAgent, type AgentState, type DragonType } from "@/lib/store/gameStore";
-import type { DeepAgent, DeepAgentTypeConfig } from "deepagents";
-import { useFileOperations } from '@/components/a2ui/game/entities/FileOperation';
+import { useGameStore, type GameAgent, type AgentState, type DragonType } from "@/app/components/a2ui/game/store/gameStore";
+import { useFileOperations } from '@/app/components/a2ui/game/entities/FileOperation';
+import type { AgentMiddlewareConfig } from "./agentConfigTypes";
+import type { LLMProvider } from "@/app/lib/deepagents-interop/a2a/providers";
 
 // ============================================================================
 // Types
@@ -13,6 +14,16 @@ export interface AgentConfig {
   model?: string;
   tools?: any[];
   systemPrompt?: string;
+  modelProvider?: LLMProvider;
+  middleware?: AgentMiddlewareConfig;
+  subagents?: any[];
+  skills?: string[];
+}
+
+// Reference to a DeepAgent that's created on the server
+export interface DeepAgentRef {
+  id: string;
+  config: AgentConfig;
 }
 
 export interface AgentEvent {
@@ -86,11 +97,11 @@ export function useAgentBridge() {
       // Spawn visual agent
       const gameAgent = spawnAgent(name, [25 + Math.random() * 5, 0, 25 + Math.random() * 5]);
 
-      // Store Deep Agent reference (will be set when agent is invoked)
+      // Store Deep Agent reference (agent is created on the server via API)
       updateAgent(gameAgent.id, {
         agentRef: {
           id: agentId,
-          config,
+          config: { ...config, model: config.model || "gpt-4o-mini" },
         },
       });
 
@@ -204,8 +215,114 @@ export function useAgentBridge() {
     [addOperation, setThoughtBubble]
   );
 
+  // Invoke an agent with a message
+  const invokeAgent = useCallback(
+    async (agentId: string, message: string): Promise<void> => {
+      const agent = useGameStore.getState().agents[agentId];
+      if (!agent?.agentRef) {
+        console.error(`Agent ${agentId} not found or not initialized`);
+        setAgentState(agentId, "ERROR");
+        setThoughtBubble(agentId, "❌ Agent not ready");
+        return;
+      }
+
+      // Set agent to thinking state
+      setAgentState(agentId, "THINKING");
+      setThoughtBubble(agentId, "🤔 Processing...");
+
+      try {
+        // Invoke the agent via API route
+        const response = await fetch(`/api/agents/${agentId}/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.statusText}`);
+        }
+
+        // Process the stream
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(line => line.trim());
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                try {
+                  const parsed = JSON.parse(data);
+
+                  // Update agent state based on stream events
+                  if (parsed?.events) {
+                    for (const event of parsed.events) {
+                      const agentEvent: AgentEvent = {
+                        type: event.type || "agent:spoke",
+                        agentId,
+                        timestamp: Date.now(),
+                        data: event.data,
+                      };
+                      syncVisualState(agentId, agentEvent);
+
+                      // Handle specific event types
+                      switch (agentEvent.type) {
+                        case "tool:call:start":
+                          handleToolCall(agentId, agentEvent.data?.tool || "tool", "start");
+                          break;
+                        case "tool:call:complete":
+                          handleToolCall(agentId, agentEvent.data?.tool || "tool", "complete");
+                          break;
+                        case "tool:call:error":
+                          handleToolCall(agentId, agentEvent.data?.tool || "tool", "error");
+                          handleError(agentId, agentEvent.data?.error || "Tool call failed");
+                          break;
+                        case "error:occurred":
+                          handleError(agentId, agentEvent.data?.error || "Unknown error");
+                          break;
+                        case "subagent:spawned":
+                          handleSubagentSpawn(agentId, agentEvent.data?.name || "Subagent");
+                          break;
+                      }
+                    }
+                  }
+
+                  // Handle LangGraph streaming format
+                  if (parsed?.[agentId]?.messages) {
+                    syncVisualState(agentId, {
+                      type: "agent:spoke",
+                      agentId,
+                      timestamp: Date.now(),
+                      data: parsed[agentId],
+                    });
+                  }
+                } catch (e) {
+                  // Ignore parse errors for incomplete chunks
+                }
+              }
+            }
+          }
+        }
+
+        // Set agent back to IDLE state
+        setAgentState(agentId, "IDLE");
+      } catch (error) {
+        console.error(`Error invoking agent ${agentId}:`, error);
+        handleError(agentId, (error as Error).message || "Invocation failed");
+      }
+    },
+    [setAgentState, setThoughtBubble, syncVisualState, handleToolCall, handleError, handleSubagentSpawn]
+  );
+
   return {
     spawnDeepAgent,
+    invokeAgent,
     syncVisualState,
     handleToolCall,
     handleError,
@@ -290,58 +407,13 @@ export function AgentBridgeProvider({ children }: AgentBridgeProviderProps) {
   const activeStreams = useRef<Map<string, () => void>>(new Map());
   const bridge = useAgentBridge();
 
-  // Register an agent for streaming
+  // Register an agent for streaming (no-op - agents are managed via API)
   const registerAgent = useCallback(
-    (agentId: string, deepAgent: DeepAgent) => {
-      const streamProcessor = deepAgent.stream?.({ messages: [] });
-      if (!streamProcessor) return;
-
-      // Handle the promise and convert to async iterable
-      (async () => {
-        try {
-          const stream = await streamProcessor;
-          const { cancel } = processAgentStream(stream as unknown as AsyncIterable<any>, {
-            agentId,
-            onEvent: (event) => {
-              bridge.syncVisualState(agentId, event);
-
-              // Handle specific event types
-              switch (event.type) {
-                case "tool:call:start":
-                  bridge.handleToolCall(agentId, event.data?.tool || "tool", "start");
-                  break;
-                case "tool:call:complete":
-                  bridge.handleToolCall(agentId, event.data?.tool || "tool", "complete");
-                  break;
-                case "tool:call:error":
-                  bridge.handleToolCall(agentId, event.data?.tool || "tool", "error");
-                  bridge.handleError(agentId, event.data?.error || "Tool call failed");
-                  break;
-                case "error:occurred":
-                  bridge.handleError(agentId, event.data?.error || "Unknown error");
-                  break;
-                case "subagent:spawned":
-                  bridge.handleSubagentSpawn(agentId, event.data?.name || "Subagent");
-                  break;
-              }
-            },
-            onComplete: () => {
-              // Stream completed
-              console.log(`Agent ${agentId} stream completed`);
-            },
-            onError: (error) => {
-              // Stream error - spawn dragon
-              bridge.handleError(agentId, error.message);
-            },
-          });
-
-          activeStreams.current.set(agentId, cancel);
-        } catch (error) {
-          console.error(`Error processing stream for agent ${agentId}:`, error);
-        }
-      })();
+    (agentId: string, _deepAgent: any) => {
+      // Agents are now managed via API routes, no need to register here
+      console.log(`Agent ${agentId} registered (managed via API)`);
     },
-    [bridge]
+    []
   );
 
   // Unregister an agent
@@ -375,7 +447,7 @@ export function AgentBridgeProvider({ children }: AgentBridgeProviderProps) {
 // ============================================================================
 
 interface AgentBridgeContextValue {
-  registerAgent: (agentId: string, deepAgent: DeepAgent) => void;
+  registerAgent: (agentId: string, deepAgentRef: DeepAgentRef) => void;
   unregisterAgent: (agentId: string) => void;
   bridge: ReturnType<typeof useAgentBridge>;
 }

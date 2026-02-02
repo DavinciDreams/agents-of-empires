@@ -2,13 +2,13 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { shallow } from "zustand/shallow";
-import { useGameStore, useSelectedAgentIds, useAgentsMap, useAgentsShallow, useQuestsShallow, useSelection, useAgentCount, useDragonCount, useQuestCount, useCompletedQuestCount, type GameAgent, type Tool } from '@/components/a2ui/game/store';
-import { useAgentBridgeContext } from '@/components/a2ui/game/bridge/AgentBridge';
-import { useCombat } from '@/components/a2ui/game/entities/Dragon';
+import { useShallow } from "zustand/react/shallow";
+import { useGameStore, useSelectedAgentIds, useAgentsMap, useAgentsShallow, useQuestsShallow, useSelection, useAgentCount, useDragonCount, useQuestCount, useCompletedQuestCount, type GameAgent, type Tool } from '@/app/components/a2ui/game/store';
+import { useAgentBridgeContext } from '@/app/components/a2ui/game/bridge/AgentBridge';
+import { useCombat } from '@/app/components/a2ui/game/entities/Dragon';
 import { ToolCard, ToolListItem, ToolIcon, RarityBadge, TOOL_TYPE_CONFIG, RARITY_CONFIG } from "./ToolCard";
-import { screenToWorld } from '@/components/a2ui/game/core/CameraController';
-import { useAgentBridge } from '@/components/a2ui/game/bridge/AgentBridge';
+import { screenToWorld } from '@/app/components/a2ui/game/core/CameraController';
+import { useAgentBridge } from '@/app/components/a2ui/game/bridge/AgentBridge';
 import { PartyPanel } from "./PartyPanel";
 import { StructureInfoPanel } from "./StructureInfoPanel";
 
@@ -520,18 +520,27 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
               </div>
               <p className="text-xs text-gray-300 mb-2">{quest.description}</p>
 
-              {quest.status === "pending" && selectedAgentIds.size > 0 && (
+              {/* Show quest requirements and assignment status */}
+              <div className="text-xs text-gray-400 mb-2">
+                {quest.assignedAgentIds.length} / {quest.requiredAgents} units assigned
+              </div>
+
+              {/* Show assign button if agents are selected and quest needs more agents */}
+              {selectedAgentIds.size > 0 &&
+               quest.assignedAgentIds.length < quest.requiredAgents &&
+               quest.status !== "completed" && (
                 <button
                   onClick={() => assignQuestToAgents(quest.id, Array.from(selectedAgentIds))}
                   className="text-xs bg-empire-gold text-gray-900 px-3 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors"
                 >
-                  Assign ({selectedAgentIds.size})
+                  Assign ({selectedAgentIds.size}) Agent{selectedAgentIds.size > 1 ? 's' : ''}
                 </button>
               )}
 
-              {quest.status === "in_progress" && (
-                <div className="text-xs text-gray-400">
-                  {quest.assignedAgentIds.length} unit(s) assigned
+              {/* Show completion status */}
+              {quest.status === "completed" && (
+                <div className="text-xs text-green-400 font-semibold">
+                  ✓ Quest Complete!
                 </div>
               )}
             </div>
@@ -556,7 +565,7 @@ export function ContextMenu({ agentId, position, onClose }: ContextMenuProps) {
   const agent = useGameStore((state) => state.agents[agentId]);
   const closeContextMenu = useGameStore((state) => state.closeContextMenu);
   const contextMenuOpen = useGameStore((state) => state.contextMenuOpen);
-  const dragonsMap = useGameStore((state) => state.dragons, shallow);
+  const dragonsMap = useGameStore(useShallow((state) => state.dragons));
   const [showInventory, setShowInventory] = useState(false);
   const [showCombat, setShowCombat] = useState(false);
   const { attackDragon, autoResolveCombat } = useCombat();
@@ -744,13 +753,16 @@ export function HUD({ className = "" }: HUDProps) {
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
     };
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
 
       // Get the tool data
+      if (!e.dataTransfer) return;
       const toolData = e.dataTransfer.getData("application/json");
       if (!toolData) return;
 

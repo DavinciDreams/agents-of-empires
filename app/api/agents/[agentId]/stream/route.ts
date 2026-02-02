@@ -16,9 +16,10 @@ import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     // Parse request body
     const body = await req.json();
 
@@ -74,7 +75,7 @@ export async function POST(
 
     // Wrap with A2A protocol
     const wrapper = new A2AWrapper(agent, {
-      agentId: params.agentId,
+      agentId: agentId,
       verbose: process.env.NODE_ENV === "development",
     });
 

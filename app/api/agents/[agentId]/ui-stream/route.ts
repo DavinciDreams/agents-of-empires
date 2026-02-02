@@ -33,7 +33,7 @@ const middleware = composeMiddleware(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   // Apply middleware
   const middlewareResult = await middleware(req);
@@ -42,17 +42,18 @@ export async function POST(
   }
 
   try {
+    const { agentId } = await params;
     // Parse and validate request
     const body = await req.json();
     const validation = validateA2ARequest(body);
 
-    if (!validation.success) {
+    if (!validation.valid) {
       return NextResponse.json(
         {
           error: {
             code: A2AErrorCode.INVALID_REQUEST,
             message: "Invalid request",
-            details: validation.error,
+            details: validation.errors,
           },
         },
         { status: 400 }
@@ -63,14 +64,14 @@ export async function POST(
 
     // Get agent from registry
     const registry = AgentRegistry.getInstance();
-    const agent = await registry.getAgent(params.agentId);
+    const agent = await registry.getAgent(agentId);
 
     if (!agent) {
       return NextResponse.json(
         {
           error: {
             code: A2AErrorCode.AGENT_NOT_FOUND,
-            message: `Agent not found: ${params.agentId}`,
+            message: `Agent not found: ${agentId}`,
           },
         },
         { status: 404 }
@@ -86,11 +87,11 @@ export async function POST(
 
     // Start execution tracking
     const tracker = ExecutionTracker.getInstance();
-    const execution = tracker.startExecution(params.agentId, threadId, a2aRequest);
+    const execution = tracker.startExecution(agentId, threadId, a2aRequest);
 
     // Create A2UI wrapper
     const wrapper = new A2UIWrapper(agent, {
-      agentId: params.agentId,
+      agentId: agentId,
       enableProgressTracking: true,
       batchUpdates: false,
     });

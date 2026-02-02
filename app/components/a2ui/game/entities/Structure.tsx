@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Color } from "three";
 import { Text } from "@react-three/drei";
-import { useGameStore, useStructuresShallow, type Structure as StructureType } from '@/components/a2ui/game/store';
+import { useGameStore, useStructuresShallow, type Structure as StructureType } from '@/app/components/a2ui/game/store';
 import { shallow } from "zustand/shallow";
 
 // ============================================================================

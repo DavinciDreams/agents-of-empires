@@ -10,7 +10,7 @@ import {
   useQuestsShallow,
   type Structure,
   type Quest,
-} from '@/components/a2ui/game/store';
+} from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Structure Type Icons

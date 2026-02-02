@@ -3,18 +3,26 @@
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3, Color, TubeGeometry, MeshBasicMaterial, CatmullRomCurve3 } from "three";
-import { useAgentsShallow, usePartiesShallow } from '@/components/a2ui/game/store';
+import { useAgentsShallow, usePartiesShallow, useQuestsShallow, useStructuresShallow } from '@/app/components/a2ui/game/store';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export type ConnectionType = "parent-child" | "collaborating" | "moving-together" | "shared-resources";
+export type ConnectionType = "parent-child" | "collaborating" | "moving-together" | "shared-resources" | "quest";
 
 export interface AgentConnection {
   fromAgentId: string;
   toAgentId: string;
   type: ConnectionType;
+  startTime: number;
+  intensity: number;
+}
+
+export interface QuestConnection {
+  fromAgentId: string;
+  toStructureId: string;
+  type: "quest";
   startTime: number;
   intensity: number;
 }
@@ -28,6 +36,7 @@ const CONNECTION_COLORS: Record<ConnectionType, string> = {
   "collaborating": "#2ecc71", // Green for working together
   "moving-together": "#f4d03f", // Yellow for coordinated movement
   "shared-resources": "#ff9ff3", // Pink/purple for shared resource access
+  "quest": "#f39c12", // Gold/orange for quest connections
 };
 
 const CONNECTION_EMISSIVE: Record<ConnectionType, string> = {
@@ -35,6 +44,7 @@ const CONNECTION_EMISSIVE: Record<ConnectionType, string> = {
   "collaborating": "#1e8449",
   "moving-together": "#b7950b",
   "shared-resources": "#c44569",
+  "quest": "#d35400",
 };
 
 const CONNECTION_OPACITY: Record<ConnectionType, number> = {
@@ -42,6 +52,7 @@ const CONNECTION_OPACITY: Record<ConnectionType, number> = {
   "collaborating": 0.6,
   "moving-together": 0.4,
   "shared-resources": 0.5,
+  "quest": 0.7,
 };
 
 // ============================================================================
@@ -57,9 +68,11 @@ interface ConnectionLineProps {
   key: string;
 }
 
-function ConnectionLine({ startPoint, endPoint, type, intensity }: ConnectionLineProps) {
+function ConnectionLine({ startPoint, endPoint, type, intensity, age }: ConnectionLineProps) {
   const meshRef = useRef<any>(null);
   const materialRef = useRef<MeshBasicMaterial | null>(null);
+  // Random offset for varied pulse timing - calculated once per instance
+  const pulseOffset = useRef(Math.random() * 100);
 
   const baseColor = CONNECTION_COLORS[type];
   const emissiveColor = CONNECTION_EMISSIVE[type];
@@ -88,8 +101,9 @@ function ConnectionLine({ startPoint, endPoint, type, intensity }: ConnectionLin
   const geometry = useMemo(() => {
     // Use fewer segments for performance
     const tubularSegments = Math.max(3, Math.floor(curve.getLength() / 2));
-    const radius = 0.05 + intensity * 0.05;
-    const radialSegments = 6;
+    // Increased base radius for better visibility (was 0.05)
+    const radius = 0.15 + intensity * 0.1;
+    const radialSegments = 8;
     const closed = false;
 
     return new TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
@@ -111,8 +125,8 @@ function ConnectionLine({ startPoint, endPoint, type, intensity }: ConnectionLin
   // Update animation
   useFrame((state) => {
     if (meshRef.current && materialRef.current) {
-      // Pulse animation
-      const pulse = Math.sin(state.clock.elapsedTime * 3 + age) * 0.2 + 0.8;
+      // Pulse animation with random offset for variation
+      const pulse = Math.sin(state.clock.elapsedTime * 3 + pulseOffset.current) * 0.2 + 0.8;
       materialRef.current.opacity = baseOpacity * pulse * intensity;
 
       // Subtle scale pulse
@@ -120,9 +134,6 @@ function ConnectionLine({ startPoint, endPoint, type, intensity }: ConnectionLin
       meshRef.current.scale.setScalar(scalePulse);
     }
   });
-
-  // Calculate age offset for varied pulse timing
-  const age = Math.random() * 100;
 
   // Clean up geometry on unmount
   useEffect(() => {
@@ -154,7 +165,10 @@ export function ConnectionLines({
 }: ConnectionLinesProps) {
   const agents = useAgentsShallow() as Record<string, any>;
   const parties = usePartiesShallow() as Record<string, any>;
+  const quests = useQuestsShallow() as Record<string, any>;
+  const structures = useStructuresShallow() as Record<string, any>;
   const connectionsRef = useRef<AgentConnection[]>([]);
+  const questConnectionsRef = useRef<QuestConnection[]>([]);
   const lastUpdateRef = useRef(0);
   const updateInterval = 250; // Update every 250ms (reduced from 100ms for better performance)
 
@@ -324,10 +338,37 @@ export function ConnectionLines({
     };
   }, [agents, parties, maxConnections]);
 
+  // Find quest connections (agents to their quest target structures)
+  const updateQuestConnections = useMemo(() => {
+    return () => {
+      const now = Date.now();
+      const questConnections: QuestConnection[] = [];
+      
+      for (const [questId, quest] of Object.entries(quests)) {
+        if (quest.assignedAgentIds && quest.assignedAgentIds.length > 0 && quest.targetStructureId) {
+          for (const agentId of quest.assignedAgentIds) {
+            // Check if agent and structure exist
+            if (agents[agentId] && structures[quest.targetStructureId]) {
+              questConnections.push({
+                fromAgentId: agentId,
+                toStructureId: quest.targetStructureId,
+                type: "quest",
+                startTime: now,
+                intensity: 0.6,
+              });
+            }
+          }
+        }
+      }
+      questConnectionsRef.current = questConnections;
+    };
+  }, [agents, quests, structures]);
+
   // Update connections on each frame
   useFrame(() => {
     if (enabled) {
       updateConnections();
+      updateQuestConnections();
     }
   });
 
@@ -354,8 +395,30 @@ export function ConnectionLines({
     });
   }
 
+  // Build renderable quest connections
+  const visibleQuestConnections: Array<{
+    fromAgentId: string;
+    toStructureId: string;
+    type: "quest";
+    intensity: number;
+    age: number;
+  }> = [];
+
+  for (const conn of questConnectionsRef.current) {
+    const fromAgent = agents[conn.fromAgentId];
+    const toStructure = structures[conn.toStructureId];
+
+    if (!fromAgent || !toStructure) continue;
+
+    visibleQuestConnections.push({
+      ...conn,
+      age: Date.now() - conn.startTime,
+    });
+  }
+
   return (
     <group>
+      {/* Agent-to-agent connections */}
       {visibleConnections.map((conn) => {
         const fromAgent = agents[conn.fromAgentId];
         const toAgent = agents[conn.toAgentId];
@@ -367,10 +430,32 @@ export function ConnectionLines({
 
         return (
           <ConnectionLine
-            key={`${conn.fromAgentId}-${conn.toAgentId}`}
+            key={`agent-${conn.fromAgentId}-${conn.toAgentId}`}
             startPoint={startPoint}
             endPoint={endPoint}
             type={conn.type}
+            intensity={conn.intensity}
+            age={conn.age}
+          />
+        );
+      })}
+      
+      {/* Agent-to-structure quest connections */}
+      {visibleQuestConnections.map((conn) => {
+        const fromAgent = agents[conn.fromAgentId];
+        const toStructure = structures[conn.toStructureId];
+
+        if (!fromAgent || !toStructure) return null;
+
+        const startPoint = new Vector3(...fromAgent.position);
+        const endPoint = new Vector3(...toStructure.position);
+
+        return (
+          <ConnectionLine
+            key={`quest-${conn.fromAgentId}-${conn.toStructureId}`}
+            startPoint={startPoint}
+            endPoint={endPoint}
+            type="quest"
             intensity={conn.intensity}
             age={conn.age}
           />

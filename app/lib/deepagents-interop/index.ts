@@ -17,4 +17,25 @@ export * from "./agent-card";
 export * from "./a2a";
 
 // A2UI Protocol
-export * from "./a2ui";
+export {
+  A2UIWrapper,
+  stateToA2UI,
+  createComponent,
+  createUpdate,
+  createRemove,
+  validateComponent,
+  getComponentDefinition,
+  getComponentsByCategory,
+  allowsChildren,
+  transformStreamEvent as transformStreamEventA2UI,
+  createProgressUpdate,
+  createError,
+  createCompletion,
+  COMPONENT_CATALOG,
+} from "./a2ui";
+
+// Backend exports
+export { createStoreBackend, defaultStoreBackend } from "./backends/store-backend";
+
+// Sandbox exports
+export { LocalSandbox } from "./sandbox";

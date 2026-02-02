@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { v4 as uuidv4 } from "uuid";
 import { enableMapSet } from "immer";
+import type { BackendType, AgentMiddlewareConfig } from "../bridge/agentConfigTypes";
 
 // Enable Immer's MapSet plugin for Set/Map support
 enableMapSet();
@@ -24,6 +25,10 @@ export interface Tool {
   description: string;
   rarity: Rarity;
   power?: number; // Optional power stat for gameplay
+  cooldownTime?: number; // Cooldown duration in milliseconds (e.g., 5000 for 5 seconds)
+  lastUsed?: number; // Timestamp of last use
+  mastery?: number; // Tool mastery level (0-100)
+  experience?: number; // Experience points for this tool
 }
 
 export interface GameAgent {
@@ -191,6 +196,13 @@ interface GameState {
 
   // Active goals
   activeGoalId: string | null;
+
+  // Agent Middleware Configuration
+  backendConfig: {
+    type: BackendType;
+    initialized: boolean;
+  };
+  agentMiddleware: AgentMiddlewareConfig | null;
 }
 
 // ============================================================================
@@ -223,6 +235,10 @@ interface GameActions {
   equipTool: (agentId: string, tool: Tool) => void;
   unequipTool: (agentId: string) => void;
   addToolToInventory: (agentId: string, tool: Tool) => void;
+  useTool: (agentId: string) => void;
+  getToolCooldownPercent: (tool: Tool) => number;
+  isToolOnCooldown: (tool: Tool) => boolean;
+  gainToolExperience: (agentId: string, toolId: string, amount: number) => void;
   setThoughtBubble: (agentId: string, thought: string | null) => void;
   setSpeechBubble: (
     agentId: string,
@@ -315,6 +331,10 @@ interface GameActions {
 
   // Batch updates
   updateMultipleAgents: (updates: Array<{ id: string; changes: Partial<GameAgent> }>) => void;
+
+  // Agent Middleware Actions
+  setBackendConfig: (config: { type: BackendType; initialized: boolean }) => void;
+  setAgentMiddleware: (middleware: AgentMiddlewareConfig | null) => void;
 }
 
 // ============================================================================
@@ -360,6 +380,11 @@ export const useGameStore = create<GameStore>()(
     contextMenuPosition: null,
     contextMenuAgentId: null,
     activeGoalId: null,
+    backendConfig: {
+      type: "store",
+      initialized: false,
+    },
+    agentMiddleware: null,
 
   // World Actions
   initializeWorld: (width, height) => {
@@ -528,6 +553,71 @@ export const useGameStore = create<GameStore>()(
       const agent = state.agents[agentId];
       if (agent) {
         state.agents[agentId].inventory = [...agent.inventory, tool];
+      }
+    });
+  },
+
+  useTool: (agentId) => {
+    set((state) => {
+      const agent = state.agents[agentId];
+      if (agent?.equippedTool) {
+        const tool = agent.equippedTool;
+        tool.lastUsed = Date.now();
+
+        // Grant experience for using the tool
+        const currentExp = tool.experience || 0;
+        const currentMastery = tool.mastery || 0;
+        tool.experience = currentExp + 10;
+
+        // Level up mastery every 100 experience points
+        if (tool.experience >= (currentMastery + 1) * 100) {
+          tool.mastery = Math.min(100, currentMastery + 1);
+        }
+      }
+    });
+  },
+
+  getToolCooldownPercent: (tool) => {
+    if (!tool.cooldownTime || !tool.lastUsed) return 0;
+    const elapsed = Date.now() - tool.lastUsed;
+    if (elapsed >= tool.cooldownTime) return 0;
+    return ((tool.cooldownTime - elapsed) / tool.cooldownTime) * 100;
+  },
+
+  isToolOnCooldown: (tool) => {
+    if (!tool.cooldownTime || !tool.lastUsed) return false;
+    const elapsed = Date.now() - tool.lastUsed;
+    return elapsed < tool.cooldownTime;
+  },
+
+  gainToolExperience: (agentId, toolId, amount) => {
+    set((state) => {
+      const agent = state.agents[agentId];
+      if (!agent) return;
+
+      // Check equipped tool
+      if (agent.equippedTool?.id === toolId) {
+        const tool = agent.equippedTool;
+        const currentExp = tool.experience || 0;
+        const currentMastery = tool.mastery || 0;
+        tool.experience = currentExp + amount;
+
+        // Level up mastery every 100 experience points
+        if (tool.experience >= (currentMastery + 1) * 100) {
+          tool.mastery = Math.min(100, currentMastery + 1);
+        }
+      }
+
+      // Check inventory tools
+      const inventoryTool = agent.inventory.find(t => t.id === toolId);
+      if (inventoryTool) {
+        const currentExp = inventoryTool.experience || 0;
+        const currentMastery = inventoryTool.mastery || 0;
+        inventoryTool.experience = currentExp + amount;
+
+        if (inventoryTool.experience >= (currentMastery + 1) * 100) {
+          inventoryTool.mastery = Math.min(100, currentMastery + 1);
+        }
       }
     });
   },
@@ -1235,13 +1325,26 @@ export const useGameStore = create<GameStore>()(
       }
     });
   },
+
+  // Agent Middleware Actions
+  setBackendConfig: (config: { type: BackendType; initialized: boolean }) => {
+    set((state) => {
+      state.backendConfig = config;
+    });
+  },
+
+  setAgentMiddleware: (middleware: AgentMiddlewareConfig | null) => {
+    set((state) => {
+      state.agentMiddleware = middleware;
+    });
+  },
 })));
 
 // ============================================================================
 // Selector Hooks
 // ============================================================================
 
-import { shallow } from "zustand/shallow";
+import { useShallow } from "zustand/react/shallow";
 
 // Use cached count values - these are stable scalar values
 export const useAgentCount = () => useGameStore((state) => state.agentCount);
@@ -1262,12 +1365,12 @@ export const usePartiesMap = () => useGameStore((state) => state.parties);
 
 // These selectors use shallow comparison for the Map reference itself
 // Components should use useMemo to convert to arrays when needed
-export const useAgentsShallow = () => useGameStore((state) => state.agents, shallow);
-export const useDragonsShallow = () => useGameStore((state) => state.dragons, shallow);
-export const useStructuresShallow = () => useGameStore((state) => state.structures, shallow);
-export const useQuestsShallow = () => useGameStore((state) => state.quests, shallow);
-export const useTilesShallow = () => useGameStore((state) => state.tiles, shallow);
-export const usePartiesShallow = () => useGameStore((state) => state.parties, shallow);
+export const useAgentsShallow = () => useGameStore(useShallow((state) => state.agents));
+export const useDragonsShallow = () => useGameStore(useShallow((state) => state.dragons));
+export const useStructuresShallow = () => useGameStore(useShallow((state) => state.structures));
+export const useQuestsShallow = () => useGameStore(useShallow((state) => state.quests));
+export const useTilesShallow = () => useGameStore(useShallow((state) => state.tiles));
+export const usePartiesShallow = () => useGameStore(useShallow((state) => state.parties));
 
 // Selection Set
 export const useSelection = () => useGameStore((state) => state.selectedAgentIds);
