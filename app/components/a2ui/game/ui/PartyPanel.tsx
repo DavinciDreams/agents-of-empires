@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { shallow } from "zustand/shallow";
 import {
   useGameStore,
   usePartiesShallow,
@@ -25,30 +24,52 @@ interface PartyPanelProps {
 export function PartyPanel({ isOpen = true, onClose }: PartyPanelProps) {
   const partiesMap = usePartiesShallow();
   const agentsMap = useAgentsMap();
-  const selectedAgentIds = useGameStore((state) => state.selectedAgentIds);
   const createParty = useGameStore((state) => state.createParty);
   const disbandParty = useGameStore((state) => state.disbandParty);
   const setPartyFormation = useGameStore((state) => state.setPartyFormation);
   const setPartyLeader = useGameStore((state) => state.setPartyLeader);
-  const moveParty = useGameStore((state) => state.moveParty);
-  const clearSelection = useGameStore((state) => state.clearSelection);
 
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPartyName, setNewPartyName] = useState("");
+  const [formMemberIds, setFormMemberIds] = useState<Set<string>>(new Set());
 
   const parties = useMemo(() => Object.values(partiesMap as Record<string, Party>), [partiesMap]);
-  const selectedAgentsArray = useMemo(
-    () => Array.from(selectedAgentIds),
-    [selectedAgentIds]
+
+  // Get agents available for party creation (not already in a party)
+  const availableAgents = useMemo(
+    () => Object.values(agentsMap as Record<string, GameAgent>).filter((a) => !a.partyId),
+    [agentsMap]
   );
 
+  const openCreateForm = () => {
+    setFormMemberIds(new Set());
+    setNewPartyName("");
+    setShowCreateForm(true);
+  };
+
+  const toggleFormMember = (agentId: string) => {
+    setFormMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) {
+        next.delete(agentId);
+      } else {
+        next.add(agentId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllAvailable = () => {
+    setFormMemberIds(new Set(availableAgents.map((a) => a.id)));
+  };
+
   const handleCreateParty = () => {
-    if (newPartyName.trim() && selectedAgentsArray.length > 0) {
-      createParty(newPartyName.trim(), selectedAgentsArray);
+    if (newPartyName.trim() && formMemberIds.size > 0) {
+      createParty(newPartyName.trim(), Array.from(formMemberIds));
       setNewPartyName("");
+      setFormMemberIds(new Set());
       setShowCreateForm(false);
-      clearSelection();
     }
   };
 
@@ -74,43 +95,121 @@ export function PartyPanel({ isOpen = true, onClose }: PartyPanelProps) {
           {/* Header */}
           <div className="bg-gradient-to-r from-empire-gold/30 to-empire-gold/10 px-4 py-3 border-b border-empire-gold/30">
             <div className="flex items-center justify-between">
-              <h2 className="text-empire-gold font-bold text-lg">Parties & Squads</h2>
-              {parties.length > 0 && (
+              <h2 className="text-empire-gold font-bold text-lg">
+                {showCreateForm ? "Create New Party" : "Parties & Squads"}
+              </h2>
+              {!showCreateForm && parties.length > 0 && (
                 <span className="text-xs text-gray-400">{parties.length} parties</span>
+              )}
+              {showCreateForm && (
+                <button
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewPartyName("");
+                    setFormMemberIds(new Set());
+                  }}
+                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  Back
+                </button>
               )}
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-4 max-h-96 overflow-y-auto">
-            {parties.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-400 mb-4">No parties formed yet</p>
-                <p className="text-xs text-gray-500 mb-4">
-                  Select agents and create a party to group them together
-                </p>
-                {selectedAgentsArray.length > 0 && (
+          {showCreateForm ? (
+            /* Create Party Form */
+            <div className="p-4">
+              <input
+                type="text"
+                value={newPartyName}
+                onChange={(e) => setNewPartyName(e.target.value)}
+                placeholder="Party name..."
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white mb-3 focus:outline-none focus:border-empire-gold"
+                autoFocus
+              />
+
+              {/* Agent selection list */}
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-gray-400">
+                  Select members ({formMemberIds.size} selected)
+                </label>
+                {availableAgents.length > 0 && (
                   <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="px-4 py-2 bg-empire-gold/20 border border-empire-gold rounded hover:bg-empire-gold/30 transition-colors"
+                    onClick={selectAllAvailable}
+                    className="text-xs text-empire-gold hover:underline"
                   >
-                    Create Party ({selectedAgentsArray.length} agents)
+                    Select all
                   </button>
                 )}
               </div>
-            ) : (
-              <>
-                {/* Create Party Button */}
-                {selectedAgentsArray.length > 0 && (
-                  <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="w-full mb-4 px-4 py-2 bg-empire-gold/20 border border-empire-gold rounded hover:bg-empire-gold/30 transition-colors"
-                  >
-                    + Create Party ({selectedAgentsArray.length} selected)
-                  </button>
+              <div className="max-h-48 overflow-y-auto mb-3 border border-gray-700 rounded bg-gray-800/50">
+                {availableAgents.length === 0 ? (
+                  <div className="text-xs text-gray-500 text-center py-4">
+                    All agents are already in parties
+                  </div>
+                ) : (
+                  availableAgents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      onClick={() => toggleFormMember(agent.id)}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors border-b border-gray-700/50 last:border-b-0 ${
+                        formMemberIds.has(agent.id)
+                          ? "bg-empire-gold/15 text-white"
+                          : "text-gray-400 hover:bg-white/5"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
+                          formMemberIds.has(agent.id)
+                            ? "border-empire-gold bg-empire-gold/30 text-empire-gold"
+                            : "border-gray-600"
+                        }`}
+                      >
+                        {formMemberIds.has(agent.id) && "✓"}
+                      </div>
+                      <span className="flex-1 text-sm">{agent.name}</span>
+                      <span className="text-xs text-gray-500">Lvl {agent.level}</span>
+                    </div>
+                  ))
                 )}
+              </div>
 
-                {/* Party List */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateParty}
+                  disabled={!newPartyName.trim() || formMemberIds.size === 0}
+                  className="flex-1 px-4 py-2 bg-empire-gold/20 border border-empire-gold rounded hover:bg-empire-gold/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create ({formMemberIds.size})
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewPartyName("");
+                    setFormMemberIds(new Set());
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Party List View */
+            <div className="p-4 max-h-96 overflow-y-auto">
+              {/* Create Party Button - always visible */}
+              <button
+                onClick={openCreateForm}
+                className="w-full mb-4 px-4 py-3 bg-empire-gold/30 border-2 border-empire-gold rounded-lg hover:bg-empire-gold/50 transition-all text-empire-gold font-bold text-base shadow-md shadow-empire-gold/25 hover:shadow-lg hover:shadow-empire-gold/40 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                + Assign Agents to Party
+              </button>
+
+              {parties.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-400 text-sm">No parties formed yet</p>
+                </div>
+              ) : (
                 <div className="space-y-3">
                   {parties.map((party) => (
                     <PartyCard
@@ -128,51 +227,9 @@ export function PartyPanel({ isOpen = true, onClose }: PartyPanelProps) {
                     />
                   ))}
                 </div>
-              </>
-            )}
-          </div>
-
-          {/* Create Party Form Modal */}
-          <AnimatePresence>
-            {showCreateForm && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-gray-900/98 flex items-center justify-center p-4"
-              >
-                <div className="w-full">
-                  <h3 className="text-empire-gold font-bold mb-4">Create New Party</h3>
-                  <input
-                    type="text"
-                    value={newPartyName}
-                    onChange={(e) => setNewPartyName(e.target.value)}
-                    placeholder="Party name..."
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white mb-4 focus:outline-none focus:border-empire-gold"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCreateParty}
-                      disabled={!newPartyName.trim()}
-                      className="flex-1 px-4 py-2 bg-empire-gold/20 border border-empire-gold rounded hover:bg-empire-gold/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Create
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCreateForm(false);
-                        setNewPartyName("");
-                      }}
-                      className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

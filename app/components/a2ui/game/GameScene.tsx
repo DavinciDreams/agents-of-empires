@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { GameState, GameLoop } from './core/Game';
 import { CameraController } from './core/CameraController';
@@ -27,10 +27,17 @@ import { useGameStore } from './store/gameStore';
  * - HUD overlay
  */
 export function GameScene() {
-  // Structure interaction handlers
+  // Agent + Structure interaction handlers
+  const selectAgent = useGameStore((state) => state.selectAgent);
+  const clearSelection = useGameStore((state) => state.clearSelection);
   const setSelectedStructure = useGameStore((state) => state.setSelectedStructure);
   const getSelectedAgentIds = () => useGameStore.getState().selectedAgentIds;
   const assignQuestToAgents = useGameStore((state) => state.assignQuestToAgents);
+
+  const handleAgentClick = useCallback((agentId: string) => {
+    clearSelection();
+    selectAgent(agentId);
+  }, [clearSelection, selectAgent]);
 
   const handleStructureClick = (structureId: string) => {
     // Left-click: Select structure to show info panel
@@ -110,7 +117,7 @@ export function GameScene() {
           <Suspense fallback={null}>
             <WorldGrid width={50} height={50} />
             <InitialAgents count={10} />
-            <AgentPool />
+            <AgentPool onAgentClick={handleAgentClick} />
             <DragonPool />
             <StructurePool />
             <ConnectionLines />

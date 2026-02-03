@@ -26,6 +26,9 @@ export interface CameraControllerProps {
   rotationSpeed?: number;
   elevationSpeed?: number;
   damping?: number; // Smoothness factor (0-1), higher = smoother
+  enableInertia?: boolean; // Enable momentum-based camera movement
+  inertiaDamping?: number; // How quickly inertia decays (0-1)
+  worldBounds?: { minX: number; maxX: number; minZ: number; maxZ: number }; // Restrict camera to world bounds
 }
 
 // Constants for isometric camera
@@ -56,11 +59,14 @@ const MIN_CAMERA_HEIGHT = 5; // Minimum camera height to prevent terrain clippin
 export function useCameraController({
   minZoom = 0.2,
   maxZoom = 5.0,
-  zoomSpeed = 0.002,
-  panSpeed = 0.01,
-  rotationSpeed = 0.02,
-  elevationSpeed = 0.01,
-  damping = 0.1,
+  zoomSpeed = 0.0015,
+  panSpeed = 0.5,
+  rotationSpeed = 0.03,
+  elevationSpeed = 0.02,
+  damping = 0.15,
+  enableInertia = true,
+  inertiaDamping = 0.92,
+  worldBounds = { minX: -5, maxX: 55, minZ: -5, maxZ: 55 },
 }: CameraControllerProps = {}) {
   const { camera, gl } = useThree();
 
@@ -78,19 +84,29 @@ export function useCameraController({
   const setRotation = useSetCameraRotation();
   const setElevation = useSetCameraElevation();
 
-  // Local ref for smooth interpolation values
+  // Local ref for smooth interpolation values and velocity
   const smoothRef = useRef<{
     currentX: number;
     currentZ: number;
     currentZoom: number;
     currentRotation: number;
     currentElevation: number;
+    velocityX: number;
+    velocityZ: number;
+    velocityRotation: number;
+    velocityElevation: number;
+    keysPressed: Set<string>;
   }>({
     currentX: position.x,
     currentZ: position.z,
     currentZoom: zoom,
     currentRotation: rotation,
     currentElevation: elevation,
+    velocityX: 0,
+    velocityZ: 0,
+    velocityRotation: 0,
+    velocityElevation: 0,
+    keysPressed: new Set(),
   });
 
   // Update smooth values when target changes (for direct set operations)
@@ -99,99 +115,62 @@ export function useCameraController({
     smoothRef.current.currentZ = position.z;
   }, [position]);
 
-  // Handle keyboard input for camera control
+  // Handle keyboard input for camera control with continuous movement
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Get current smooth zoom for panning calculations
-      const currentZoom = smoothRef.current.currentZoom;
-      const panAmount = 2 / currentZoom;
+      const key = e.key.toLowerCase();
 
-      switch (e.key) {
-        case "ArrowLeft":
-        case "a":
-          // Rotate camera if holding Shift, otherwise pan
-          if (e.shiftKey) {
-            setRotation(rotationTarget + rotationSpeed);
-          } else {
-            setPosition({
-              x: Math.max(0, position.x - panAmount),
-              y: position.y,
-              z: position.z,
-            });
-          }
-          break;
-        case "ArrowRight":
-        case "d":
-          // Rotate camera if holding Shift, otherwise pan
-          if (e.shiftKey) {
-            setRotation(rotationTarget - rotationSpeed);
-          } else {
-            setPosition({
-              x: position.x + panAmount,
-              y: position.y,
-              z: position.z,
-            });
-          }
-          break;
-        case "ArrowUp":
-        case "w":
-          setPosition({
-            x: position.x,
-            y: position.y,
-            z: Math.max(0, position.z - panAmount),
-          });
-          break;
-        case "ArrowDown":
-        case "s":
-          setPosition({
-            x: position.x,
-            y: position.y,
-            z: position.z + panAmount,
-          });
-          break;
-        case "q":
-        case "Q":
-          // Rotate left
-          setRotation(rotationTarget + rotationSpeed);
-          break;
-        case "e":
-        case "E":
-          // Rotate right
-          setRotation(rotationTarget - rotationSpeed);
-          break;
-        case "Home":
-          // Increase elevation
-          setElevation(Math.min(MAX_ELEVATION, elevationTarget + elevationSpeed));
-          break;
-        case "End":
-          // Decrease elevation
-          setElevation(Math.max(MIN_ELEVATION, elevationTarget - elevationSpeed));
-          break;
+      // Track pressed keys for continuous movement
+      if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'e'].includes(key)) {
+        smoothRef.current.keysPressed.add(key);
+        e.preventDefault();
+      }
+
+      // Handle one-time key presses for elevation
+      if (e.key === "Home") {
+        setElevation(Math.min(MAX_ELEVATION, elevationTarget + elevationSpeed * 2));
+        e.preventDefault();
+      } else if (e.key === "End") {
+        setElevation(Math.max(MIN_ELEVATION, elevationTarget - elevationSpeed * 2));
+        e.preventDefault();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [position, rotationTarget, elevationTarget, setPosition, setRotation, setElevation, rotationSpeed, elevationSpeed]);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      smoothRef.current.keysPressed.delete(key);
+    };
 
-  // Handle mouse wheel for zooming
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [elevationTarget, setElevation, elevationSpeed]);
+
+  // Handle mouse wheel for zooming with improved sensitivity
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const delta = -e.deltaY * zoomSpeed;
+
+      // Normalize wheel delta (different browsers/devices have different scales)
+      const delta = e.deltaY > 0 ? -1 : 1;
+      const zoomFactor = delta > 0 ? 1.12 : 0.89; // ~12% zoom per scroll step
+
       const newZoom = MathUtils.clamp(
-        smoothRef.current.currentZoom + delta * smoothRef.current.currentZoom,
+        smoothRef.current.currentZoom * zoomFactor,
         minZoom,
         maxZoom
       );
-      smoothRef.current.currentZoom = newZoom;
+
       setZoom(newZoom);
     };
 
     const canvas = gl.domElement;
     canvas.addEventListener("wheel", handleWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", handleWheel);
-  }, [gl, zoomSpeed, minZoom, maxZoom, setZoom]);
+  }, [gl, minZoom, maxZoom, setZoom]);
 
   // Handle middle mouse drag for panning and right mouse drag for rotation
   useEffect(() => {
@@ -223,7 +202,7 @@ export function useCameraController({
 
         // Convert screen delta to world delta based on current rotation
         const currentRotation = smoothRef.current.currentRotation;
-        const panAmount = 0.05 / smoothRef.current.currentZoom;
+        const panAmount = 0.08 / smoothRef.current.currentZoom;
 
         // Calculate pan direction based on camera rotation
         const cos = Math.cos(currentRotation);
@@ -232,11 +211,9 @@ export function useCameraController({
         const worldDeltaX = (deltaX * cos - deltaY * sin) * panAmount;
         const worldDeltaZ = (deltaX * sin + deltaY * cos) * panAmount;
 
-        const newX = Math.max(0, position.x - worldDeltaX);
-        const newZ = Math.max(0, position.z - worldDeltaZ);
+        const newX = MathUtils.clamp(position.x - worldDeltaX, worldBounds.minX, worldBounds.maxX);
+        const newZ = MathUtils.clamp(position.z - worldDeltaZ, worldBounds.minZ, worldBounds.maxZ);
 
-        smoothRef.current.currentX = newX;
-        smoothRef.current.currentZ = newZ;
         setPosition({ x: newX, y: position.y, z: newZ });
 
         lastX = e.clientX;
@@ -245,13 +222,13 @@ export function useCameraController({
         const deltaX = e.clientX - lastX;
         const deltaY = e.clientY - lastY;
 
-        // Horizontal movement = rotation
-        const newRotation = rotationTarget + deltaX * rotationSpeed * 0.5;
+        // Horizontal movement = rotation (increased sensitivity)
+        const newRotation = rotationTarget + deltaX * rotationSpeed * 0.8;
         setRotation(newRotation);
 
-        // Vertical movement = elevation
+        // Vertical movement = elevation (increased sensitivity)
         const newElevation = MathUtils.clamp(
-          elevationTarget - deltaY * elevationSpeed * 0.5,
+          elevationTarget - deltaY * elevationSpeed * 0.8,
           MIN_ELEVATION,
           MAX_ELEVATION
         );
@@ -284,13 +261,51 @@ export function useCameraController({
       window.removeEventListener("mouseup", handleMouseUp);
       canvas.removeEventListener("contextmenu", handleContextMenu);
     };
-  }, [gl, position, rotationTarget, elevationTarget, setPosition, setRotation, setElevation, rotationSpeed, elevationSpeed]);
+  }, [gl, position, rotationTarget, elevationTarget, setPosition, setRotation, setElevation, rotationSpeed, elevationSpeed, worldBounds]);
+
+  // Double-click to focus camera on position
+  useEffect(() => {
+    let lastClickTime = 0;
+
+    const handleDoubleClick = (e: MouseEvent) => {
+      const now = Date.now();
+      const timeDiff = now - lastClickTime;
+
+      if (timeDiff < 300 && e.button === 0) {
+        // Calculate world position from screen click
+        const rect = gl.domElement.getBoundingClientRect();
+
+        const worldPos = screenToWorld(
+          e.clientX - rect.left,
+          e.clientY - rect.top,
+          camera,
+          rect.width,
+          rect.height
+        );
+
+        if (worldPos) {
+          const newX = MathUtils.clamp(worldPos.x, worldBounds.minX, worldBounds.maxX);
+          const newZ = MathUtils.clamp(worldPos.z, worldBounds.minZ, worldBounds.maxZ);
+          setPosition({ x: newX, y: position.y, z: newZ });
+        }
+
+        lastClickTime = 0;
+      } else {
+        lastClickTime = now;
+      }
+    };
+
+    const canvas = gl.domElement;
+    canvas.addEventListener("mousedown", handleDoubleClick);
+
+    return () => {
+      canvas.removeEventListener("mousedown", handleDoubleClick);
+    };
+  }, [gl, camera, position, setPosition, worldBounds]);
 
   // Edge scrolling
   useEffect(() => {
-    const EDGE_THRESHOLD = 20;
-    const EDGE_SPEED = 0.5 / smoothRef.current.currentZoom;
-
+    const EDGE_THRESHOLD = 30;
     let edgeX = 0;
     let edgeZ = 0;
 
@@ -315,21 +330,20 @@ export function useCameraController({
     const updateEdgeScroll = () => {
       if (edgeX !== 0 || edgeZ !== 0) {
         const currentRotation = smoothRef.current.currentRotation;
-        const panAmount = EDGE_SPEED;
+        const edgeSpeed = (0.8 / smoothRef.current.currentZoom) * panSpeed;
 
         // Calculate pan direction based on camera rotation
         const cos = Math.cos(currentRotation);
         const sin = Math.sin(currentRotation);
 
-        const worldDeltaX = (edgeX * cos - edgeZ * sin) * panAmount;
-        const worldDeltaZ = (edgeX * sin + edgeZ * cos) * panAmount;
+        const worldDeltaX = (edgeX * cos - edgeZ * sin) * edgeSpeed;
+        const worldDeltaZ = (edgeX * sin + edgeZ * cos) * edgeSpeed;
 
-        const newX = Math.max(0, position.x + worldDeltaX);
-        const newZ = Math.max(0, position.z + worldDeltaZ);
+        const currentPos = { x: smoothRef.current.currentX, y: position.y, z: smoothRef.current.currentZ };
+        const newX = MathUtils.clamp(currentPos.x + worldDeltaX, worldBounds.minX, worldBounds.maxX);
+        const newZ = MathUtils.clamp(currentPos.z + worldDeltaZ, worldBounds.minZ, worldBounds.maxZ);
 
-        smoothRef.current.currentX = newX;
-        smoothRef.current.currentZ = newZ;
-        setPosition({ x: newX, y: position.y, z: newZ });
+        setPosition({ x: newX, y: currentPos.y, z: newZ });
       }
       animationFrameId = requestAnimationFrame(updateEdgeScroll);
     };
@@ -340,12 +354,98 @@ export function useCameraController({
       window.removeEventListener("mousemove", handleMouseMove);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [position, setPosition]);
+  }, [position, setPosition, panSpeed, worldBounds]);
 
-  // Update camera position each frame with smooth damping
-  useFrame(() => {
+  // Update camera position each frame with smooth damping and keyboard control
+  useFrame((_, delta) => {
+    // Cap delta to prevent large jumps
+    const clampedDelta = Math.min(delta, 0.1);
+
+    // Handle continuous keyboard movement
+    const keys = smoothRef.current.keysPressed;
+    if (keys.size > 0) {
+      const keyPanSpeed = panSpeed * 1.5 / smoothRef.current.currentZoom;
+      const keyRotSpeed = rotationSpeed * 50;
+
+      const currentRotation = smoothRef.current.currentRotation;
+      const cos = Math.cos(currentRotation);
+      const sin = Math.sin(currentRotation);
+
+      let moveX = 0;
+      let moveZ = 0;
+
+      // WASD/Arrow movement
+      if (keys.has('w') || keys.has('arrowup')) moveZ -= 1;
+      if (keys.has('s') || keys.has('arrowdown')) moveZ += 1;
+      if (keys.has('a') || keys.has('arrowleft')) moveX -= 1;
+      if (keys.has('d') || keys.has('arrowright')) moveX += 1;
+
+      // Apply rotation to movement direction
+      if (moveX !== 0 || moveZ !== 0) {
+        const worldDeltaX = (moveX * cos - moveZ * sin) * keyPanSpeed;
+        const worldDeltaZ = (moveX * sin + moveZ * cos) * keyPanSpeed;
+
+        if (enableInertia) {
+          smoothRef.current.velocityX += worldDeltaX * 0.3;
+          smoothRef.current.velocityZ += worldDeltaZ * 0.3;
+        } else {
+          const newX = MathUtils.clamp(position.x + worldDeltaX, worldBounds.minX, worldBounds.maxX);
+          const newZ = MathUtils.clamp(position.z + worldDeltaZ, worldBounds.minZ, worldBounds.maxZ);
+          setPosition({ x: newX, y: position.y, z: newZ });
+        }
+      }
+
+      // Q/E rotation
+      if (keys.has('q')) {
+        if (enableInertia) {
+          smoothRef.current.velocityRotation += keyRotSpeed * clampedDelta;
+        } else {
+          setRotation(rotationTarget + rotationSpeed);
+        }
+      }
+      if (keys.has('e')) {
+        if (enableInertia) {
+          smoothRef.current.velocityRotation -= keyRotSpeed * clampedDelta;
+        } else {
+          setRotation(rotationTarget - rotationSpeed);
+        }
+      }
+    }
+
+    // Apply inertia/velocity
+    if (enableInertia) {
+      const newX = MathUtils.clamp(
+        position.x + smoothRef.current.velocityX,
+        worldBounds.minX,
+        worldBounds.maxX
+      );
+      const newZ = MathUtils.clamp(
+        position.z + smoothRef.current.velocityZ,
+        worldBounds.minZ,
+        worldBounds.maxZ
+      );
+
+      if (newX !== position.x || newZ !== position.z) {
+        setPosition({ x: newX, y: position.y, z: newZ });
+      }
+
+      if (smoothRef.current.velocityRotation !== 0) {
+        setRotation(rotationTarget + smoothRef.current.velocityRotation);
+      }
+
+      // Apply damping to velocity
+      smoothRef.current.velocityX *= inertiaDamping;
+      smoothRef.current.velocityZ *= inertiaDamping;
+      smoothRef.current.velocityRotation *= inertiaDamping;
+
+      // Stop velocity if very small
+      if (Math.abs(smoothRef.current.velocityX) < 0.001) smoothRef.current.velocityX = 0;
+      if (Math.abs(smoothRef.current.velocityZ) < 0.001) smoothRef.current.velocityZ = 0;
+      if (Math.abs(smoothRef.current.velocityRotation) < 0.0001) smoothRef.current.velocityRotation = 0;
+    }
+
     // Smoothly interpolate all values towards targets
-    const smoothFactor = 1 - Math.pow(1 - damping, 1 / 60); // Frame-rate independent
+    const smoothFactor = 1 - Math.pow(1 - damping, clampedDelta * 60); // Frame-rate independent
 
     // Interpolate position
     smoothRef.current.currentX += (position.x - smoothRef.current.currentX) * smoothFactor;

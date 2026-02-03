@@ -467,11 +467,53 @@ interface QuestTrackerProps {
 
 export function QuestTracker({ className = "" }: QuestTrackerProps) {
   const questsMap = useQuestsShallow();
+  const agentsMap = useAgentsMap();
   const assignQuestToAgents = useGameStore((state) => state.assignQuestToAgents);
-  const selectedAgentIds = useSelection();
 
-  // Convert Record to array with useMemo to prevent infinite re-renders
   const quests = useMemo(() => Object.values(questsMap), [questsMap]);
+
+  // Track which quest has its agent picker open
+  const [assigningQuestId, setAssigningQuestId] = useState<string | null>(null);
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+
+  // Agents available for assignment (not already assigned to the target quest)
+  const getAvailableAgents = useCallback(
+    (questId: string) => {
+      const quest = questsMap[questId];
+      if (!quest) return [];
+      const assignedSet = new Set(quest.assignedAgentIds);
+      return Object.values(agentsMap as Record<string, GameAgent>).filter(
+        (a) => !assignedSet.has(a.id)
+      );
+    },
+    [agentsMap, questsMap]
+  );
+
+  const openPicker = (questId: string) => {
+    setPickerSelected(new Set());
+    setAssigningQuestId(questId);
+  };
+
+  const closePicker = () => {
+    setAssigningQuestId(null);
+    setPickerSelected(new Set());
+  };
+
+  const togglePickerAgent = (agentId: string) => {
+    setPickerSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
+      return next;
+    });
+  };
+
+  const confirmAssign = () => {
+    if (assigningQuestId && pickerSelected.size > 0) {
+      assignQuestToAgents(assigningQuestId, Array.from(pickerSelected));
+      closePicker();
+    }
+  };
 
   return (
     <motion.div
@@ -490,62 +532,117 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
         <p className="text-gray-400 text-sm italic">No active objectives</p>
       ) : (
         <div className="space-y-2 max-h-60 overflow-y-auto">
-          {quests.map((quest) => (
-            <div
-              key={quest.id}
-              className={`p-3 rounded border transition-all ${
-                quest.status === "completed"
-                  ? "bg-green-900/30 border-green-600"
-                  : quest.status === "in_progress"
-                  ? "bg-yellow-900/30 border-yellow-600"
-                  : "bg-gray-800/80 border-gray-700"
-              }`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <span className="font-semibold text-sm">{quest.title}</span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded font-medium ${
-                    quest.status === "completed"
-                      ? "bg-green-700 text-white"
-                      : quest.status === "in_progress"
-                      ? "bg-yellow-700 text-white"
-                      : "bg-gray-600 text-gray-300"
-                  }`}
-                >
-                  {quest.status === "completed"
-                    ? "Done"
+          {quests.map((quest) => {
+            const needsMore =
+              quest.assignedAgentIds.length < quest.requiredAgents &&
+              quest.status !== "completed";
+            const isPickerOpen = assigningQuestId === quest.id;
+
+            return (
+              <div
+                key={quest.id}
+                className={`p-3 rounded border transition-all ${
+                  quest.status === "completed"
+                    ? "bg-green-900/30 border-green-600"
                     : quest.status === "in_progress"
-                    ? "Active"
-                    : "Pending"}
-                </span>
-              </div>
-              <p className="text-xs text-gray-300 mb-2">{quest.description}</p>
-
-              {/* Show quest requirements and assignment status */}
-              <div className="text-xs text-gray-400 mb-2">
-                {quest.assignedAgentIds.length} / {quest.requiredAgents} units assigned
-              </div>
-
-              {/* Show assign button if agents are selected and quest needs more agents */}
-              {selectedAgentIds.size > 0 &&
-               quest.assignedAgentIds.length < quest.requiredAgents &&
-               quest.status !== "completed" && (
-                <button
-                  onClick={() => assignQuestToAgents(quest.id, Array.from(selectedAgentIds))}
-                  className="text-xs bg-empire-gold text-gray-900 px-3 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors"
-                >
-                  Assign ({selectedAgentIds.size}) Agent{selectedAgentIds.size > 1 ? 's' : ''}
-                </button>
-              )}
-
-              {/* Show completion status */}
-              {quest.status === "completed" && (
-                <div className="text-xs text-green-400 font-semibold">
-                  ✓ Quest Complete!
+                    ? "bg-yellow-900/30 border-yellow-600"
+                    : "bg-gray-800/80 border-gray-700"
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <span className="font-semibold text-sm">{quest.title}</span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded font-medium ${
+                      quest.status === "completed"
+                        ? "bg-green-700 text-white"
+                        : quest.status === "in_progress"
+                        ? "bg-yellow-700 text-white"
+                        : "bg-gray-600 text-gray-300"
+                    }`}
+                  >
+                    {quest.status === "completed"
+                      ? "Done"
+                      : quest.status === "in_progress"
+                      ? "Active"
+                      : "Pending"}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+                <p className="text-xs text-gray-300 mb-2">{quest.description}</p>
+
+                <div className="text-xs text-gray-400 mb-2">
+                  {quest.assignedAgentIds.length} / {quest.requiredAgents} units assigned
+                </div>
+
+                {/* Assign button - always visible when quest needs agents */}
+                {needsMore && !isPickerOpen && (
+                  <button
+                    onClick={() => openPicker(quest.id)}
+                    className="text-xs bg-empire-gold text-gray-900 px-3 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors"
+                  >
+                    Assign Agents
+                  </button>
+                )}
+
+                {/* Inline agent picker */}
+                {isPickerOpen && (
+                  <div className="mt-2 border border-gray-600 rounded bg-gray-800/80">
+                    <div className="max-h-32 overflow-y-auto">
+                      {getAvailableAgents(quest.id).length === 0 ? (
+                        <div className="text-xs text-gray-500 text-center py-3">
+                          No available agents
+                        </div>
+                      ) : (
+                        getAvailableAgents(quest.id).map((agent) => (
+                          <div
+                            key={agent.id}
+                            onClick={() => togglePickerAgent(agent.id)}
+                            className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer text-xs border-b border-gray-700/50 last:border-b-0 transition-colors ${
+                              pickerSelected.has(agent.id)
+                                ? "bg-empire-gold/15 text-white"
+                                : "text-gray-400 hover:bg-white/5"
+                            }`}
+                          >
+                            <div
+                              className={`w-3 h-3 rounded border flex items-center justify-center ${
+                                pickerSelected.has(agent.id)
+                                  ? "border-empire-gold bg-empire-gold/30 text-empire-gold text-[10px]"
+                                  : "border-gray-600"
+                              }`}
+                            >
+                              {pickerSelected.has(agent.id) && "✓"}
+                            </div>
+                            <span className="flex-1">{agent.name}</span>
+                            <span className="text-gray-500">Lvl {agent.level}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex gap-1 p-2 border-t border-gray-700">
+                      <button
+                        onClick={confirmAssign}
+                        disabled={pickerSelected.size === 0}
+                        className="flex-1 text-xs bg-empire-gold text-gray-900 px-2 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Assign ({pickerSelected.size})
+                      </button>
+                      <button
+                        onClick={closePicker}
+                        className="flex-1 text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded hover:bg-gray-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {quest.status === "completed" && (
+                  <div className="text-xs text-green-400 font-semibold">
+                    ✓ Quest Complete!
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </motion.div>
