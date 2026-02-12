@@ -139,7 +139,7 @@ export const createCustomZip = async (
       } else if (typeof value === 'object' && value !== null) {
         // Check if it's a file-like object
         if ('data' in value && 'name' in value) {
-          folder.file(value.name, value.data)
+          folder.file(value.name as string, value.data as string)
         } else {
           // It's a folder structure
           const subfolder = folder.folder(key)
