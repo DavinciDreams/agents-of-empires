@@ -16,8 +16,11 @@ interface ToolLibraryProps {
 }
 
 export function ToolLibrary({ onClose, agentId }: ToolLibraryProps) {
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
   const equipTool = useGameStore((state) => state.equipTool);
+
+  // Memoize to avoid infinite re-renders
+  const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [filterRarity, setFilterRarity] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
@@ -217,7 +220,10 @@ interface ToolCardProps {
 
 function ToolCard({ tool, isSelected, onSelect, agentId }: ToolCardProps) {
   const equipTool = useGameStore((state) => state.equipTool);
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
+
+  // Memoize to avoid infinite re-renders
+  const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
 
   // Check if any agent has this tool equipped
   const equippedBy = agents.find(a => a.equippedTool?.id === tool.id);
@@ -299,7 +305,10 @@ interface ToolDetailsProps {
 
 function ToolDetails({ tool, agentId }: ToolDetailsProps) {
   const equipTool = useGameStore((state) => state.equipTool);
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
+
+  // Memoize to avoid infinite re-renders
+  const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
 
   const equippedBy = agents.find(a => a.equippedTool?.id === tool.id);
   const rarityConfig = RARITY_CONFIG[tool.rarity];

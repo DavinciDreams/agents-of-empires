@@ -16,8 +16,11 @@ interface PipelineVisualizationProps {
 }
 
 export function PipelineVisualization({ onClose, compact = false }: PipelineVisualizationProps) {
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
+
+  // Memoize to avoid infinite re-renders
+  const agents = React.useMemo(() => Object.values(agentsMap), [agentsMap]);
 
   // Calculate pipeline metrics
   const metrics = {
