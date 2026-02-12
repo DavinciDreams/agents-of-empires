@@ -69,6 +69,15 @@ Focus on the specific task given. Break it down into steps if needed, and execut
 
 You have access to a web search tool to research information when needed.
 
+IMPORTANT FILE HANDLING:
+- When creating code, HTML, CSS, or any text files, you MUST save them using shell commands
+- Use 'cat > filename << 'EOF'' heredoc syntax to write multi-line files
+- Example: cat > index.html << 'EOF'
+  <html>...</html>
+  EOF
+- Always save your work - don't just describe what to create
+- After creating files, confirm they exist with 'ls -la' or 'cat filename'
+
 IMPORTANT: Once you have completed the task, provide a clear final answer. Do not enter loops or repeatedly call the same tool with the same inputs. If a tool fails, try a different approach or explain the limitation.`,
           tools: [tavilySearch],
         });
