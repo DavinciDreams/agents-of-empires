@@ -17,6 +17,7 @@ import { ConnectionLegend } from "@/app/components/a2ui/game/entities/Connection
 import { IntelligenceBureau } from "./IntelligenceBureau";
 import { ChatCommander } from "./ChatCommander";
 import { AgentProgressHUD } from "./AgentProgressHUD";
+import { AgentCheckpointPanel } from "./AgentCheckpointPanel";
 import { LogsViewer } from "./LogsViewer";
 
 // ============================================================================
@@ -1236,6 +1237,11 @@ export function HUD({ className = "" }: HUDProps) {
 
       {/* Agent Progress HUD - Top right, below minimap */}
       <AgentProgressHUD />
+
+      {/* Agent Checkpoint Panel - View and control agent checkpoint execution */}
+      <div className="pointer-events-auto">
+        <AgentCheckpointPanel />
+      </div>
 
       {/* Logs Viewer - Bottom right */}
       <div className="pointer-events-auto">
