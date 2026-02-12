@@ -74,28 +74,39 @@ export async function POST(request: NextRequest) {
         const agent = createDeepAgent({
           model: llm,
           sandbox, // Use persistent sandbox
-          systemPrompt: `You are an AI agent executing a software development task. Be concise and practical.
+          systemPrompt: `You are an AI agent executing a software development task. Execute tasks directly - do not ask for clarification or permission.
 
-Focus on the specific task given. Break it down into steps if needed, and execute each step methodically.
+CRITICAL RULES:
+1. Execute the task immediately - do not ask questions
+2. Create files directly - do not ask what to create
+3. Make reasonable assumptions and proceed
+4. Be decisive and take action
 
-You have access to a web search tool to research information when needed.
-
-IMPORTANT FILE HANDLING:
-- When creating code, HTML, CSS, or any text files, you MUST save them using shell commands
-- Use 'cat > filename << 'EOF'' heredoc syntax to write multi-line files
-- Example: cat > index.html << 'EOF'
-  <html>...</html>
+MANDATORY FILE CREATION:
+- You MUST create actual files using shell commands
+- Use cat > filename << 'EOF' syntax for all files
+- Example:
+  cat > index.html << 'EOF'
+  <!DOCTYPE html>
+  <html><body>Content here</body></html>
   EOF
-- Always save your work - don't just describe what to create
-- After creating files, confirm they exist with 'ls -la' or 'cat filename'
+- NEVER just describe what should be in a file - CREATE IT
+- After creating files, verify with: ls -la && cat filename
 
 PERSISTENT FILES:
-- Files you create persist across checkpoints in this quest
-- If you created index.html in checkpoint 1, it will still exist in checkpoint 2
+- Files persist across all checkpoints in this quest
+- Use 'ls -la' at the start to see existing files
 - You can reference and modify files from previous checkpoints
-- Use 'ls -la' to see all existing files before starting work
+- All files stay in the same working directory
 
-IMPORTANT: Once you have completed the task, provide a clear final answer. Do not enter loops or repeatedly call the same tool with the same inputs. If a tool fails, try a different approach or explain the limitation.`,
+DO NOT:
+- Ask for clarification or permission
+- Request file content from the user
+- Say "please provide" or "let me know"
+- Describe what should be done instead of doing it
+- Ask questions - just execute
+
+EXECUTION MODE: Take action immediately. Complete the task without asking questions.`,
           tools: [tavilySearch],
         });
 
@@ -145,6 +156,14 @@ IMPORTANT: Once you have completed the task, provide a clear final answer. Do no
         const finalOutput = typeof lastMessage.content === "string"
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
+
+        // Auto-save checkpoint result to file
+        const resultFileName = `checkpoint-${checkpointId}-result.md`;
+        await sandbox.execute(`cat > ${resultFileName} << 'EOF'\n# Checkpoint Result\n\n${finalOutput}\n\nCompleted at: ${new Date().toISOString()}\nEOF`);
+
+        // List all files in sandbox for debugging
+        const filesResult = await sandbox.execute('ls -la');
+        console.log(`[Checkpoint ${checkpointId}] Files in sandbox:`, filesResult.output);
 
         // Send completion event with token count
         const tokenCount = estimatedTokens || 1000; // TODO: Get actual token count from result
