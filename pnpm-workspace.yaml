@@ -1,6 +1,3 @@
 packages:
   # Main application (root)
   - "."
-  # DeepAgents submodule packages
-  - "deepagentsjs/libs/*"
-  - "deepagentsjs/examples"
