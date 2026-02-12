@@ -6,19 +6,20 @@
  */
 
 import { NextRequest } from "next/server";
-import { createDeepAgent } from "deepagents";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { A2AWrapper, validateA2ARequest } from "@/app/lib/deepagents-interop";
 import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
+import { AgentRegistry } from "@/app/lib/deepagents-interop/a2a/registry";
+import { createGameTools, mapEquippedToolToEnabledTools } from "@/app/lib/deepagents-interop/tools";
 
 /**
  * POST handler for streaming agent invocation
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     // Parse request body
     const body = await req.json();
 
@@ -61,20 +62,58 @@ export async function POST(
       );
     }
 
-    // Create agent
-    const agent = createDeepAgent({
-      model: new ChatAnthropic({
-        model: a2aRequest.config?.model || "claude-sonnet-4-20250514",
-        temperature: a2aRequest.config?.temperature ?? 0,
-        anthropicApiKey: apiKey,
-      }),
-      systemPrompt: "You are a helpful AI assistant.",
-      checkpointer: true,
-    });
+    // Get or create agent from registry
+    const registry = AgentRegistry.getInstance();
+
+    let agent;
+    try {
+      // Try to get existing agent from cache
+      agent = await registry.getAgent(agentId);
+    } catch (error) {
+      // Agent not found in registry, register and create it
+      const agentConfig = (a2aRequest.context?.agentConfig || {}) as {
+        name?: string;
+        description?: string;
+        systemPrompt?: string;
+        equippedTool?: { id: string; name: string; type: string };
+      };
+      const model = a2aRequest.config?.model || "claude-sonnet-4-20250514";
+      const temperature = a2aRequest.config?.temperature ?? 0;
+
+      // Map equipped tool to enabled tools
+      const enabledTools = agentConfig.equippedTool
+        ? mapEquippedToolToEnabledTools(agentConfig.equippedTool)
+        : ["file_read", "file_write", "list_files"];
+
+      // Create game tools for this agent
+      const tools = createGameTools(agentId, enabledTools);
+
+      // Register agent configuration
+      registry.register({
+        id: agentId,
+        name: agentConfig.name || `Agent-${agentId.slice(0, 6)}`,
+        description: agentConfig.description || "A game agent",
+        model: {
+          provider: "anthropic",
+          name: model,
+          temperature,
+          apiKey,
+        },
+        systemPrompt: agentConfig.systemPrompt ||
+          "You are a helpful AI agent in a game world. You can use tools to read/write files, search for information, and complete quests. Work collaboratively with other agents to achieve goals.",
+        tools,
+        backend: "store", // Use store backend for persistent memory
+        checkpointer: true,
+        memory: ["conversation_history"], // Enable memory
+      });
+
+      // Get the newly created agent
+      agent = await registry.getAgent(agentId);
+    }
 
     // Wrap with A2A protocol
     const wrapper = new A2AWrapper(agent, {
-      agentId: params.agentId,
+      agentId: agentId,
       verbose: process.env.NODE_ENV === "development",
     });
 
@@ -83,8 +122,20 @@ export async function POST(
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Add thread_id to config for conversation persistence
+          const streamConfig = {
+            ...a2aRequest,
+            config: {
+              ...a2aRequest.config,
+              configurable: {
+                thread_id: a2aRequest.config?.threadId || agentId,
+                checkpoint_id: a2aRequest.config?.checkpointId,
+              },
+            },
+          };
+
           // Stream events from agent
-          for await (const event of wrapper.stream(a2aRequest)) {
+          for await (const event of wrapper.stream(streamConfig)) {
             // Format as SSE
             const data = `data: ${JSON.stringify(event)}\n\n`;
             controller.enqueue(encoder.encode(data));

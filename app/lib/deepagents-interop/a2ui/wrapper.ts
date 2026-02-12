@@ -5,7 +5,6 @@
  * Transforms agent execution into real-time UI component streams.
  */
 
-import { CompiledStateGraph } from "@langchain/langgraph";
 import { A2UIMessage, A2UIStreamOptions } from "../types/a2ui";
 import { A2ARequest } from "../types/a2a";
 import { stateToA2UI } from "./adapter";
@@ -33,10 +32,10 @@ export interface A2UIConfig {
  * Provides A2UI streaming interface for LangGraph agents.
  */
 export class A2UIWrapper {
-  private agent: CompiledStateGraph;
+  private agent: any;
   private config: Required<A2UIConfig>;
 
-  constructor(agent: CompiledStateGraph, config: A2UIConfig) {
+  constructor(agent: any, config: A2UIConfig) {
     this.agent = agent;
     this.config = {
       enableProgressTracking: true,

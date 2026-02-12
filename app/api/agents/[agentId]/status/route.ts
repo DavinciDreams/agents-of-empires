@@ -13,9 +13,10 @@ import { A2AErrorCode } from "@/app/lib/deepagents-interop/types";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     const searchParams = req.nextUrl.searchParams;
     const executionId = searchParams.get("executionId");
     const threadId = searchParams.get("threadId");
@@ -58,7 +59,7 @@ export async function GET(
     }
 
     // Verify agent ID matches
-    if (execution.agentId !== params.agentId) {
+    if (execution.agentId !== agentId) {
       return NextResponse.json(
         {
           error: {

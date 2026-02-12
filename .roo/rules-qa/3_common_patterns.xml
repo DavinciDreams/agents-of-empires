@@ -1,0 +1,483 @@
+<common_patterns>
+  <overview>
+    Reusable test patterns and templates for common testing scenarios in E2E, API, and automation testing.
+  </overview>
+
+  <playwright_patterns>
+    <pattern name="basic_e2e_test">
+      <description>Basic structure for a Playwright E2E test</description>
+      <code language="typescript">
+import { test, expect } from '@playwright/test';
+
+test.describe('Agent Management', () => {
+  test('should display agent list', async ({ page }) => {
+    // Arrange
+    await page.goto('/agents');
+
+    // Act
+    const agentCards = page.getByTestId('agent-card');
+
+    // Assert
+    await expect(agentCards.first()).toBeVisible();
+    await expect(agentCards).toHaveCount(await page.locator('[data-testid="agent-card"]').count());
+  });
+
+  test('should create new agent', async ({ page }) => {
+    // Arrange
+    await page.goto('/agents');
+    const agentName = 'Test Agent ' + Date.now();
+
+    // Act
+    await page.getByTestId('create-agent-button').click();
+    await page.getByTestId('agent-name-input').fill(agentName);
+    await page.getByTestId('save-button').click();
+
+    // Assert
+    await expect(page.getByTestId('agent-name')).toHaveText(agentName);
+  });
+});
+      </code>
+    </pattern>
+
+    <pattern name="api_mocking">
+      <description>Mock API responses in Playwright tests</description>
+      <code language="typescript">
+import { test, expect } from '@playwright/test';
+
+test('should display agent data from API', async ({ page }) => {
+  // Mock the API response
+  await page.route('**/api/agents/**', async route => {
+    const json = {
+      id: 'test-agent-1',
+      name: 'Mocked Agent',
+      status: 'running',
+      createdAt: new Date().toISOString(),
+    };
+    await route.fulfill({ json });
+  });
+
+  // Navigate and verify
+  await page.goto('/agents/test-agent-1');
+  await expect(page.getByTestId('agent-name')).toHaveText('Mocked Agent');
+  await expect(page.getByTestId('agent-status')).toHaveText('running');
+});
+      </code>
+    </pattern>
+
+    <pattern name="form_interaction">
+      <description>Testing form submission and validation</description>
+      <code language="typescript">
+test('should validate agent creation form', async ({ page }) => {
+  await page.goto('/agents/new');
+
+  // Test empty submission
+  await page.getByTestId('save-button').click();
+  await expect(page.getByTestId('name-error')).toHaveText('Name is required');
+
+  // Test valid submission
+  await page.getByTestId('agent-name-input').fill('Valid Agent Name');
+  await page.getByTestId('save-button').click();
+  await expect(page).toHaveURL(/\/agents\/.+/);
+});
+      </code>
+    </pattern>
+
+    <pattern name="authentication_flow">
+      <description>Testing authentication and protected routes</description>
+      <code language="typescript">
+test.describe('Authentication', () => {
+  test('should redirect to login when not authenticated', async ({ page }) => {
+    await page.goto('/agents');
+    await expect(page).toHaveURL('/login');
+  });
+
+  test.use({ storageState: 'auth-state.json' }); // Use saved auth state
+
+  test('should access protected route when authenticated', async ({ page }) => {
+    await page.goto('/agents');
+    await expect(page.getByTestId('agent-list')).toBeVisible();
+  });
+});
+      </code>
+    </pattern>
+
+    <pattern name="page_object">
+      <description>Page object pattern for complex interactions</description>
+      <code language="typescript">
+// pages/AgentPage.ts
+import { Page, Locator, expect } from '@playwright/test';
+
+export class AgentPage {
+  readonly page: Page;
+  readonly nameInput: Locator;
+  readonly saveButton: Locator;
+  readonly statusBadge: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.nameInput = page.getByTestId('agent-name-input');
+    this.saveButton = page.getByTestId('save-button');
+    this.statusBadge = page.getByTestId('agent-status');
+  }
+
+  async goto(agentId: string) {
+    await this.page.goto(`/agents/${agentId}`);
+  }
+
+  async createAgent(name: string) {
+    await this.nameInput.fill(name);
+    await this.saveButton.click();
+  }
+
+  async getStatus(): Promise<string> {
+    return await this.statusBadge.textContent() || '';
+  }
+
+  async expectStatus(status: string) {
+    await expect(this.statusBadge).toHaveText(status);
+  }
+}
+
+// Usage in test
+test('should update agent status', async ({ page }) => {
+  const agentPage = new AgentPage(page);
+  await agentPage.goto('test-agent-1');
+  await agentPage.expectStatus('idle');
+});
+      </code>
+    </pattern>
+  </playwright_patterns>
+
+  <api_testing_patterns>
+    <pattern name="basic_api_test">
+      <description>Basic API endpoint test structure</description>
+      <code language="typescript">
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+
+const server = setupServer();
+
+describe('POST /api/agents', () => {
+  beforeEach(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+
+  it('should create a new agent', async () => {
+    const response = await fetch('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test Agent' }),
+    });
+
+    expect(response.status).toBe(201);
+    const data = await response.json();
+    expect(data).toHaveProperty('id');
+    expect(data.name).toBe('Test Agent');
+  });
+
+  it('should return 400 for invalid data', async () => {
+    const response = await fetch('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}), // Missing required fields
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data).toHaveProperty('error');
+  });
+});
+      </code>
+    </pattern>
+
+    <pattern name="authenticated_api_test">
+      <description>Testing authenticated API endpoints</description>
+      <code language="typescript">
+describe('GET /api/agents/:id', () => {
+  let authToken: string;
+
+  beforeEach(async () => {
+    // Setup: authenticate and get token
+    const loginResponse = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'test', password: 'test' }),
+    });
+    const data = await loginResponse.json();
+    authToken = data.token;
+  });
+
+  it('should return agent details with valid auth', async () => {
+    const response = await fetch('/api/agents/test-123', {
+      headers: { 'Authorization': `Bearer ${authToken}` },
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.id).toBe('test-123');
+  });
+
+  it('should return 401 without auth token', async () => {
+    const response = await fetch('/api/agents/test-123');
+
+    expect(response.status).toBe(401);
+  });
+});
+      </code>
+    </pattern>
+
+    <pattern name="api_streaming_test">
+      <description>Testing streaming API responses</description>
+      <code language="typescript">
+test('should stream agent execution updates', async () => {
+  const response = await fetch('/api/agents/test-123/stream');
+  expect(response.status).toBe(200);
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+  const updates: string[] = [];
+
+  while (true) {
+    const { done, value } = await reader!.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    updates.push(chunk);
+  }
+
+  expect(updates.length).toBeGreaterThan(0);
+  expect(updates[updates.length - 1]).toContain('completed');
+});
+      </code>
+    </pattern>
+  </api_testing_patterns>
+
+  <test_automation_patterns>
+    <pattern name="github_actions_workflow">
+      <description>GitHub Actions workflow for automated testing</description>
+      <code language="yaml">
+name: Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+      </code>
+    </pattern>
+
+    <pattern name="docker_compose_test_env">
+      <description>Docker Compose setup for integration testing</description>
+      <code language="yaml">
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test:test@db:5432/testdb
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+      - POSTGRES_DB=testdb
+    ports:
+      - "5432:5432"
+      </code>
+    </pattern>
+
+    <pattern name="test_configuration">
+      <description>Playwright configuration for different environments</description>
+      <code language="typescript">
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [
+    ['html'],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'Mobile Chrome',
+      use: { ...devices['Pixel 5'] },
+    },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+      </code>
+    </pattern>
+  </test_automation_patterns>
+
+  <helper_patterns>
+    <pattern name="test_fixtures">
+      <description>Reusable test fixtures and data factories</description>
+      <code language="typescript">
+// fixtures/agents.ts
+export function createTestAgent(overrides = {}) {
+  return {
+    id: `agent-${Date.now()}`,
+    name: 'Test Agent',
+    status: 'idle',
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function createTestAgentList(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    createTestAgent({ name: `Agent ${i + 1}` })
+  );
+}
+
+// fixtures/api.ts
+export async function setupAuthenticatedClient() {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'test', password: 'test' }),
+  });
+  const { token } = await response.json();
+  return token;
+}
+
+export function createApiClient(token: string) {
+  return {
+    get: (url: string) =>
+      fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+    post: (url: string, body: any) =>
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      }),
+  };
+}
+      </code>
+    </pattern>
+
+    <pattern name="custom_matchers">
+      <description>Custom Jest/Vitest matchers for common assertions</description>
+      <code language="typescript">
+import { expect } from 'vitest';
+
+expect.extend({
+  toBeValidAgent(received) {
+    const hasId = typeof received.id === 'string';
+    const hasName = typeof received.name === 'string';
+    const hasStatus = ['idle', 'running', 'completed', 'error'].includes(received.status);
+
+    return {
+      pass: hasId && hasName && hasStatus,
+      message: () =>
+        `expected agent to have valid structure: ` +
+        `id: ${hasId}, name: ${hasName}, status: ${hasStatus}`,
+    };
+  },
+
+  toHaveValidTimestamp(received) {
+    const timestamp = new Date(received);
+    const isValid = !isNaN(timestamp.getTime());
+    return {
+      pass: isValid,
+      message: () => `expected ${received} to be a valid ISO timestamp`,
+    };
+  },
+});
+
+// Usage
+test('agent has valid structure', () => {
+  const agent = createTestAgent();
+  expect(agent).toBeValidAgent();
+  expect(agent.createdAt).toHaveValidTimestamp();
+});
+      </code>
+    </pattern>
+  </helper_patterns>
+</common_patterns>

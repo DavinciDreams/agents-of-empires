@@ -1,0 +1,389 @@
+<complete_examples>
+  <example name="create_e2e_tests_for_agent_management">
+    <scenario>
+      Create comprehensive E2E tests for the agent management feature using Playwright
+    </scenario>
+
+    <user_request>
+      I need E2E tests for the agent management pages. Users should be able to view agents, create new agents, and delete agents.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Understand the feature and existing implementation</description>
+        <approach>
+          Review the agent management UI components and API routes to understand the user flow and available actions.
+          Outcome: understanding of agent list page, create agent form, and delete confirmation.
+        </approach>
+        <expected_outcome>Clear understanding of the agent management feature's user interface and API endpoints</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Check for existing test structure</description>
+        <approach>
+          Review existing E2E test files to understand project conventions and patterns.
+          Outcome: knowledge of test file organization, naming conventions, and setup patterns.
+        </approach>
+        <analysis>Follow existing patterns for consistency with the project's test suite</analysis>
+      </step>
+
+      <step number="3">
+        <description>Create test file structure</description>
+        <approach>
+          Create a new test file following project conventions, with describe blocks for each major feature area.
+          Outcome: structured test file ready for test implementations.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Implement agent list test</description>
+        <approach>
+          Write a test that navigates to the agents page and verifies that agent cards are displayed.
+          Use data-testid selectors for stability.
+          Outcome: working test for viewing the agent list.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Implement create agent test</description>
+        <approach>
+          Write a test that fills out the create agent form and submits it, then verifies the new agent appears.
+          Include validation for required fields.
+          Outcome: working test for creating new agents.
+        </approach>
+      </step>
+
+      <step number="6">
+        <description>Implement delete agent test</description>
+        <approach>
+          Write a test that deletes an agent and confirms it's removed from the list.
+          Include confirmation dialog handling.
+          Outcome: working test for deleting agents.
+        </approach>
+      </step>
+
+      <step number="7">
+        <description>Run tests and verify</description>
+        <approach>
+          Execute the Playwright test suite and verify all tests pass.
+          Fix any issues that arise.
+          Outcome: all E2E tests passing successfully.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Created comprehensive E2E tests for agent management including:
+      - Viewing the agent list
+      - Creating new agents with form validation
+      - Deleting agents with confirmation
+
+      All tests use data-testid selectors for stability and follow the Arrange-Act-Assert pattern.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Use data-testid selectors instead of CSS selectors for more stable tests</takeaway>
+      <takeaway>Follow the Arrange-Act-Assert pattern for clear, readable tests</takeaway>
+      <takeaway>Group related tests in describe blocks for organization</takeaway>
+      <takeaway>Test both happy paths and error conditions (validation)</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="add_api_tests_for_agent_endpoints">
+    <scenario>
+      Add API tests for the agent CRUD endpoints to ensure proper behavior and error handling
+    </scenario>
+
+    <user_request>
+      I need API tests for the agent endpoints: GET /api/agents, POST /api/agents, GET /api/agents/:id, and DELETE /api/agents/:id
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Review API endpoint implementations</description>
+        <approach>
+          Read the API route handlers to understand expected behavior, request/response formats, and error cases.
+          Outcome: understanding of API contracts and business logic.
+        </approach>
+        <expected_outcome>Clear understanding of API endpoint specifications</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Set up test infrastructure</description>
+        <approach>
+          Create test fixtures and setup functions for authentication, test data, and cleanup.
+          Outcome: reusable test infrastructure.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Implement GET /api/agents tests</description>
+        <approach>
+          Write tests for successful retrieval, empty list case, and pagination if applicable.
+          Verify response structure and status codes.
+          Outcome: tests for listing agents.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Implement POST /api/agents tests</description>
+        <approach>
+          Write tests for successful creation, validation errors, and duplicate handling.
+          Test with valid and invalid input data.
+          Outcome: tests for creating agents.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Implement GET /api/agents/:id tests</description>
+        <approach>
+          Write tests for successful retrieval, not-found case (404), and invalid ID format.
+          Outcome: tests for retrieving individual agents.
+        </approach>
+      </step>
+
+      <step number="6">
+        <description>Implement DELETE /api/agents/:id tests</description>
+        <approach>
+          Write tests for successful deletion, not-found case, and authorization checks.
+          Verify the resource is actually removed.
+          Outcome: tests for deleting agents.
+        </approach>
+      </step>
+
+      <step number="7">
+        <description>Run tests and verify coverage</description>
+        <approach>
+          Execute the API test suite and verify all tests pass.
+          Check test coverage for the API routes.
+          Outcome: comprehensive API test coverage.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Added API tests for all agent CRUD endpoints:
+      - GET /api/agents: list retrieval and empty list handling
+      - POST /api/agents: creation with validation and error handling
+      - GET /api/agents/:id: individual retrieval and 404 handling
+      - DELETE /api/agents/:id: deletion with authorization and 404 handling
+
+      Tests include authentication setup and proper cleanup.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Test both success and error cases for each endpoint</takeaway>
+      <takeaway>Use test fixtures to reduce setup duplication</takeaway>
+      <takeaway>Verify status codes and response structure in assertions</takeaway>
+      <takeaway>Include cleanup in test setup to prevent test interference</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="setup_ci_cd_pipeline_for_tests">
+    <scenario>
+      Configure automated testing in a CI/CD pipeline using GitHub Actions
+    </scenario>
+
+    <user_request>
+      I need to set up GitHub Actions to run tests automatically on push and pull requests.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Review project scripts and dependencies</description>
+        <approach>
+          Check package.json for test scripts and verify testing frameworks are properly configured.
+          Outcome: understanding of how tests are run locally.
+        </approach>
+        <expected_outcome>Knowledge of test commands and project setup</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create GitHub Actions workflow file</description>
+        <approach>
+          Create .github/workflows/test.yml with jobs for unit tests and E2E tests.
+          Configure triggers for push and pull_request events.
+          Outcome: workflow file structure.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Configure unit test job</description>
+        <approach>
+          Set up job with checkout, dependency installation, and test execution steps.
+          Add coverage upload to Codecov or similar service.
+          Outcome: unit tests running in CI.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Configure E2E test job</description>
+        <approach>
+          Set up job with Playwright browser installation, application build, and test execution.
+          Configure test result upload as artifacts on failure.
+          Outcome: E2E tests running in CI.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Test the workflow locally or in a PR</description>
+        <approach>
+          Push changes to a branch and verify the workflow runs successfully.
+          Check test results and fix any issues.
+          Outcome: working CI/CD pipeline.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Created GitHub Actions workflow for automated testing:
+      - Unit tests run on every push and pull request
+      - E2E tests run with Playwright browsers installed
+      - Test coverage is uploaded to Codecov
+      - Test results are uploaded as artifacts on failure
+
+      The workflow provides fast feedback on code changes and ensures quality standards.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Separate unit and E2E tests into different jobs for parallel execution</takeaway>
+      <takeaway>Upload test artifacts on failure to aid debugging</takeaway>
+      <takeaway>Use caching for dependencies to speed up CI runs</takeaway>
+      <takeaway>Configure retries for E2E tests to handle transient failures</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="debug_flaky_playwright_test">
+    <scenario>
+      Debug and fix a flaky Playwright test that intermittently fails
+    </scenario>
+
+    <user_request>
+      One of my E2E tests is flaky and sometimes fails with timeout errors. Can you help fix it?
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Examine the failing test</description>
+        <approach>
+          Read the test file and identify the timeout location and what the test is waiting for.
+          Outcome: understanding of the test's behavior and failure point.
+        </approach>
+        <expected_outcome>Identification of the timeout and its cause</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Review the page/component being tested</description>
+        <approach>
+          Check the component code for any race conditions, async operations, or loading states.
+          Outcome: understanding of potential timing issues.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Identify the root cause</description>
+        <approach>
+          Determine if the issue is:
+          - Missing loading state handling
+          - Race condition between actions
+          - Insufficient wait time for network requests
+          - Element not properly marked with data-testid
+          Outcome: root cause of flakiness.
+        </approach>
+        <analysis>Common causes include missing loading indicators, race conditions, or improper element selection</analysis>
+      </step>
+
+      <step number="4">
+        <description>Fix the test</description>
+        <approach>
+          Apply appropriate fix based on root cause:
+          - Add explicit wait for loading state to complete
+          - Use Playwright's auto-waiting with proper selectors
+          - Add data-testid attributes if using fragile selectors
+          - Break test into smaller steps with test.step()
+          Outcome: more reliable test implementation.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify the fix</description>
+        <approach>
+          Run the test multiple times to ensure it passes consistently.
+          Check test output for any remaining issues.
+          Outcome: stable, passing test.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Fixed the flaky test by:
+      - Adding explicit wait for the loading indicator to disappear
+      - Replacing CSS selector with data-testid for stability
+      - Using Playwright's auto-waiting with expect().toBeVisible()
+
+      The test now passes consistently across multiple runs.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Use data-testid selectors instead of CSS selectors for stability</takeaway>
+      <takeaway>Wait for loading states to complete before asserting</takeaway>
+      <takeaway>Use Playwright's built-in waiting mechanisms instead of arbitrary timeouts</takeaway>
+      <takeaway>Run tests multiple times to verify fixes for flakiness</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="add_test_data_attributes_to_components">
+    <scenario>
+      Add data-testid attributes to components to enable stable E2E testing
+    </scenario>
+
+    <user_request>
+      I need to add data-testid attributes to the agent management components so Playwright tests can find elements reliably.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Review existing tests to identify needed attributes</description>
+        <approach>
+          Read the E2E test files to see which elements are being targeted and what selectors are currently used.
+          Outcome: list of components and elements that need data-testid attributes.
+        </approach>
+        <expected_outcome>Clear list of required test IDs</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Review component implementations</description>
+        <approach>
+          Read the React component files for agent management to understand the structure and where to add attributes.
+          Outcome: understanding of component DOM structure.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Switch to Code mode for implementation</description>
+        <approach>
+          Since this requires modifying source code components, switch to Code mode to add the data-testid attributes.
+          Outcome: Code mode handles the implementation changes.
+        </approach>
+        <analysis>Adding test attributes is a source code change outside QA mode's scope</analysis>
+      </step>
+    </workflow>
+
+    <completion>
+      Identified the need for data-testid attributes on:
+      - Agent card components
+      - Create agent form inputs and buttons
+      - Delete confirmation dialog
+      - Status badges and loading indicators
+
+      Switched to Code mode to implement these changes.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Review existing tests first to understand what attributes are needed</takeaway>
+      <takeaway>Source code changes should be delegated to Code mode</takeaway>
+      <takeaway>Use descriptive, consistent naming for data-testid values</takeaway>
+      <takeaway>Document test ID conventions for future reference</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>

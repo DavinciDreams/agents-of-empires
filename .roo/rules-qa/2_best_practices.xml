@@ -1,0 +1,338 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Write tests that are independent and isolated</name>
+      <description>Each test should run independently without relying on other tests</description>
+      <rationale>Tests that depend on each other create brittle test suites and make debugging difficult</rationale>
+      <example>
+        <scenario>Testing user authentication flow</scenario>
+        <good>Each test sets up its own user data and cleans up after itself</good>
+        <bad>Tests rely on user created in previous test, causing cascading failures</bad>
+      </example>
+    </principle>
+
+    <principle priority="high">
+      <name>Use descriptive test names</name>
+      <description>Test names should clearly describe what is being tested and the expected outcome</description>
+      <rationale>Clear test names serve as documentation and make failures easier to understand</rationale>
+      <example>
+        <good>test('should redirect to login page when user is not authenticated')</good>
+        <good>test('returns 404 when agent ID does not exist')</good>
+        <bad>test('test1')</bad>
+        <bad>test('it works')</bad>
+      </example>
+    </principle>
+
+    <principle priority="high">
+      <name>Follow the Arrange-Act-Assert (AAA) pattern</name>
+      <description>Structure tests in three clear sections: arrange test data, act on the system, assert results</description>
+      <rationale>Consistent test structure improves readability and maintainability</rationale>
+      <example>
+        <code>
+test('should return agent status', async () => {
+  // Arrange
+  const agentId = 'test-agent-123';
+  const expectedStatus = 'running';
+
+  // Act
+  const response = await fetch(`/api/agents/${agentId}/status`);
+  const data = await response.json();
+
+  // Assert
+  expect(response.status).toBe(200);
+  expect(data.status).toBe(expectedStatus);
+});
+        </code>
+      </example>
+    </principle>
+
+    <principle priority="medium">
+      <name>Test the happy path and edge cases</name>
+      <description>Include tests for normal operations, error conditions, and boundary cases</description>
+      <rationale>Comprehensive test coverage catches bugs in expected and unexpected scenarios</rationale>
+      <example>
+        <test_cases>
+          <case>Valid input returns expected result</case>
+          <case>Missing required fields returns appropriate error</case>
+          <case>Invalid data types are handled correctly</case>
+          <case>Boundary values (empty, max length, zero) work correctly</case>
+        </test_cases>
+      </example>
+    </principle>
+
+    <principle priority="medium">
+      <name>Use test fixtures and helpers</name>
+      <description>Create reusable test fixtures and helper functions to reduce duplication</description>
+      <rationale>Reusability reduces boilerplate and makes tests easier to maintain</rationale>
+      <example>
+        <fixture>
+          <description>Common test setup for API tests</description>
+          <code>
+// fixtures/api.ts
+export async function createAuthenticatedClient() {
+  const token = await getTestAuthToken();
+  return createApiClient({ authorization: `Bearer ${token}` });
+}
+
+export async function createTestAgent(overrides = {}) {
+  const client = await createAuthenticatedClient();
+  return client.createAgent({
+    name: 'Test Agent',
+    ...overrides
+  });
+}
+          </code>
+        </fixture>
+      </example>
+    </principle>
+  </general_principles>
+
+  <playwright_best_practices>
+    <practice priority="high">
+      <name>Use data-testid selectors over CSS selectors</name>
+      <description>Prefer data-testid attributes for selecting elements in E2E tests</description>
+      <rationale>CSS selectors are brittle and break when styling changes; data-testid attributes are stable</rationale>
+      <example>
+        <good>
+          <code>await page.getByTestId('submit-button').click();</code>
+        </good>
+        <bad>
+          <code>await page.locator('button.btn-primary').click();</code>
+        </bad>
+      </example>
+    </practice>
+
+    <practice priority="high">
+      <name>Wait for elements explicitly</name>
+      <description>Use Playwright's auto-waiting features or explicit waits instead of arbitrary timeouts</description>
+      <rationale>Arbitrary timeouts make tests slow and flaky; Playwright's smart waiting is more reliable</rationale>
+      <example>
+        <good>
+          <code>await expect(page.getByTestId('result')).toBeVisible();</code>
+        </good>
+        <bad>
+          <code>await page.waitForTimeout(5000);</code>
+        </bad>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Use page object pattern for complex pages</name>
+      <description>Encapsulate page interactions in reusable page objects</description>
+      <rationale>Page objects reduce duplication and make tests more maintainable</rationale>
+      <example>
+        <code>
+// pages/AgentPage.ts
+export class AgentPage {
+  constructor(private page: Page) {}
+
+  async goto(agentId: string) {
+    await this.page.goto(`/agents/${agentId}`);
+  }
+
+  async invokeAgent() {
+    await this.page.getByTestId('invoke-button').click();
+  }
+
+  async getStatus() {
+    return this.page.getByTestId('agent-status').textContent();
+  }
+}
+        </code>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Test across multiple browsers and viewports</name>
+      <description>Configure Playwright to test in different browsers and screen sizes</description>
+      <rationale>Cross-browser and responsive testing ensures consistent user experience</rationale>
+      <example>
+        <code>
+// playwright.config.ts
+export default defineConfig({
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'Mobile Chrome', use: { ...devices['Pixel 5'] } },
+  ],
+});
+        </code>
+      </example>
+    </practice>
+  </playwright_best_practices>
+
+  <api_testing_best_practices>
+    <practice priority="high">
+      <name>Test all HTTP methods and status codes</name>
+      <description>Verify correct behavior for GET, POST, PUT, DELETE and appropriate status codes</description>
+      <rationale>APIs must handle all methods correctly and return proper status codes</rationale>
+      <example>
+        <test_cases>
+          <case>GET /api/agents returns 200 and list of agents</case>
+          <case>POST /api/agents with valid data returns 201 and created agent</case>
+          <case>POST /api/agents with invalid data returns 400 and error details</case>
+          <case>GET /api/agents/{id} with non-existent ID returns 404</case>
+        </test_cases>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Test API authentication and authorization</name>
+      <description>Verify that protected endpoints require authentication and enforce proper authorization</description>
+      <rationale>Security testing ensures APIs are properly protected</rationale>
+      <example>
+        <test_cases>
+          <case>Request without auth token returns 401</case>
+          <case>Request with invalid token returns 401</case>
+          <case>User can only access their own resources</case>
+          <case>Admin users have appropriate elevated access</case>
+        </test_cases>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Validate response schemas</name>
+      <description>Use schema validation to ensure API responses match expected structure</description>
+      <rationale>Schema validation catches API contract violations early</rationale>
+      <example>
+        <code>
+import { z } from 'zod';
+
+const AgentResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['idle', 'running', 'completed', 'error']),
+  createdAt: z.string().datetime(),
+});
+
+test('GET /api/agents/{id} returns valid schema', async () => {
+  const response = await fetch('/api/agents/test-id');
+  const data = await response.json();
+  expect(() => AgentResponseSchema.parse(data)).not.toThrow();
+});
+        </code>
+      </example>
+    </practice>
+  </api_testing_best_practices>
+
+  <test_automation_best_practices>
+    <practice priority="high">
+      <name>Integrate tests with CI/CD pipeline</name>
+      <description>Configure automated test execution on pull requests and merges</description>
+      <rationale>Automated testing catches regressions before they reach production</rationale>
+      <example>
+        <github_actions>
+          <code>
+# .github/workflows/test.yml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+      - uses: actions/setup-node@v3
+      - run: pnpm install
+      - run: pnpm test
+      - run: pnpm test:e2e
+          </code>
+        </github_actions>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Use test coverage thresholds</name>
+      <description>Set minimum coverage requirements and fail builds that don't meet them</description>
+      <rationale>Coverage thresholds ensure code quality and prevent regression</rationale>
+      <example>
+        <code>
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
+      },
+    },
+  },
+});
+        </code>
+      </example>
+    </practice>
+
+    <practice priority="medium">
+      <name>Parallelize test execution</practice>
+      <description>Configure tests to run in parallel for faster feedback</description>
+      <rationale>Parallel execution reduces CI/CD pipeline duration</rationale>
+      <example>
+        <code>
+// playwright.config.ts
+export default defineConfig({
+  workers: process.env.CI ? 2 : 4, // Fewer workers in CI
+  fullyParallel: true,
+});
+        </code>
+      </example>
+    </practice>
+  </test_automation_best_practices>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Testing implementation details instead of behavior</description>
+      <why_problematic>Tests become brittle and break when implementation changes without behavior changes</why_problematic>
+      <correct_approach>Test user-facing behavior and API contracts, not internal implementation</correct_approach>
+      <example>
+        <bad>Testing that a specific function is called</bad>
+        <good>Testing that the expected result is produced</good>
+      </example>
+    </pitfall>
+
+    <pitfall>
+      <description>Over-mocking dependencies</description>
+      <why_problematic>Tests may pass while the integrated system fails</why_problematic>
+      <correct_approach>Use real dependencies when possible, mock only external services</correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Ignoring flaky tests instead of fixing them</description>
+      <why_problematic>Flaky tests reduce trust in the test suite and mask real issues</why_problematic>
+      <correct_approach>Investigate and fix flaky tests; use retries only for genuinely unreliable external services</correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Writing tests after the fact</description>
+      <why_problematic>Tests written after code is complete often miss edge cases and are less thorough</why_problematic>
+      <correct_approach>Write tests alongside or before implementation (TDD) for better coverage</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_starting">
+      <item>Understand what functionality needs to be tested</item>
+      <item>Identify appropriate testing tools and frameworks</item>
+      <item>Review existing test patterns and conventions</item>
+      <item>Plan test structure and organization</item>
+    </category>
+    <category name="during_implementation">
+      <item>Follow project test naming conventions</item>
+      <item>Use descriptive test names that explain what and why</item>
+      <item>Structure tests with Arrange-Act-Assert pattern</item>
+      <item>Include tests for happy path and edge cases</item>
+      <item>Use fixtures and helpers to reduce duplication</item>
+    </category>
+    <category name="before_completion">
+      <item>Run tests locally and verify they pass</item>
+      <item>Check test coverage meets requirements</item>
+      <item>Review test output for warnings or issues</item>
+      <item>Ensure tests are independent and can run in any order</item>
+      <item>Document any special setup or configuration requirements</item>
+    </category>
+  </quality_checklist>
+</best_practices>

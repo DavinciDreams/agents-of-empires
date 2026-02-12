@@ -38,8 +38,8 @@ export const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: s
     defaultModel: "anthropic/claude-3.5-sonnet",
   },
   zai: {
-    baseURL: "https://api.zai.ai/v1",
-    defaultModel: "claude-3-5-sonnet-20241022",
+    baseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+    defaultModel: "glm-4.7",
   },
   groq: {
     baseURL: "https://api.groq.com/openai/v1",
@@ -99,8 +99,8 @@ export function createLLM(
 
     case "zai":
       return new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName: config.defaultModel || PROVIDER_CONFIGS.zai.defaultModel,
+        apiKey: apiKey,
+        model: config.defaultModel || PROVIDER_CONFIGS.zai.defaultModel,
         temperature: config.temperature ?? 0,
         configuration: {
           baseURL: config.baseURL || PROVIDER_CONFIGS.zai.baseURL,

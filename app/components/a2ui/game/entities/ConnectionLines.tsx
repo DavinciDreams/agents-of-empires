@@ -1,0 +1,565 @@
+"use client";
+
+import { useRef, useMemo, useEffect } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Vector3, Color, TubeGeometry, MeshBasicMaterial, CatmullRomCurve3 } from "three";
+import { useAgentsShallow, usePartiesShallow, useQuestsShallow, useStructuresShallow } from '@/app/components/a2ui/game/store';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export type ConnectionType = "parent-child" | "collaborating" | "moving-together" | "shared-resources" | "quest";
+
+export interface AgentConnection {
+  fromAgentId: string;
+  toAgentId: string;
+  type: ConnectionType;
+  startTime: number;
+  intensity: number;
+}
+
+export interface QuestConnection {
+  fromAgentId: string;
+  toStructureId: string;
+  type: "quest";
+  startTime: number;
+  intensity: number;
+}
+
+// ============================================================================
+// Color Configuration by Connection Type
+// ============================================================================
+
+const CONNECTION_COLORS: Record<ConnectionType, string> = {
+  "parent-child": "#00d4ff", // Cyan for subagent relationships
+  "collaborating": "#2ecc71", // Green for working together
+  "moving-together": "#f4d03f", // Yellow for coordinated movement
+  "shared-resources": "#ff9ff3", // Pink/purple for shared resource access
+  "quest": "#f39c12", // Gold/orange for quest connections
+};
+
+const CONNECTION_EMISSIVE: Record<ConnectionType, string> = {
+  "parent-child": "#0088aa",
+  "collaborating": "#1e8449",
+  "moving-together": "#b7950b",
+  "shared-resources": "#c44569",
+  "quest": "#d35400",
+};
+
+const CONNECTION_OPACITY: Record<ConnectionType, number> = {
+  "parent-child": 0.8,
+  "collaborating": 0.6,
+  "moving-together": 0.4,
+  "shared-resources": 0.5,
+  "quest": 0.7,
+};
+
+// ============================================================================
+// Connection Line Component (Individual Line)
+// ============================================================================
+
+interface ConnectionLineProps {
+  startPoint: Vector3;
+  endPoint: Vector3;
+  type: ConnectionType;
+  intensity: number;
+  age: number;
+  key: string;
+}
+
+function ConnectionLine({ startPoint, endPoint, type, intensity, age }: ConnectionLineProps) {
+  const meshRef = useRef<any>(null);
+  const materialRef = useRef<MeshBasicMaterial | null>(null);
+  // Random offset for varied pulse timing - calculated once per instance
+  const pulseOffset = useRef(Math.random() * 100);
+
+  const baseColor = CONNECTION_COLORS[type];
+  const emissiveColor = CONNECTION_EMISSIVE[type];
+  const baseOpacity = CONNECTION_OPACITY[type];
+
+  // Create curved path for the tube geometry
+  const curve = useMemo(() => {
+    // Control points for curved line (slight arc)
+    const midPoint = new Vector3()
+      .addVectors(startPoint, endPoint)
+      .multiplyScalar(0.5);
+
+    // Add slight arc upward based on distance
+    const distance = startPoint.distanceTo(endPoint);
+    midPoint.y += distance * 0.1;
+
+    // Create curve through start, mid, and end points
+    return new CatmullRomCurve3([
+      startPoint.clone(),
+      midPoint,
+      endPoint.clone(),
+    ], false, "catmullrom", 0.5);
+  }, [startPoint, endPoint]);
+
+  // Create tube geometry from curve
+  const geometry = useMemo(() => {
+    // Use fewer segments for performance
+    const tubularSegments = Math.max(3, Math.floor(curve.getLength() / 2));
+    // Increased base radius for better visibility (was 0.05)
+    const radius = 0.15 + intensity * 0.1;
+    const radialSegments = 8;
+    const closed = false;
+
+    return new TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
+  }, [curve, intensity]);
+
+  // Create material with glow effect
+  const material = useMemo(() => {
+    const mat = new MeshBasicMaterial({
+      color: baseColor,
+      transparent: true,
+      opacity: baseOpacity * intensity,
+      blending: 2, // Additive blending for glow effect
+      depthTest: false,
+    });
+    materialRef.current = mat;
+    return mat;
+  }, [baseColor, baseOpacity, intensity]);
+
+  // Update animation
+  useFrame((state) => {
+    if (meshRef.current && materialRef.current) {
+      // Pulse animation with random offset for variation
+      const pulse = Math.sin(state.clock.elapsedTime * 3 + pulseOffset.current) * 0.2 + 0.8;
+      materialRef.current.opacity = baseOpacity * pulse * intensity;
+
+      // Subtle scale pulse
+      const scalePulse = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+      meshRef.current.scale.setScalar(scalePulse);
+    }
+  });
+
+  // Clean up geometry on unmount
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      if (materialRef.current) {
+        materialRef.current.dispose();
+      }
+    };
+  }, [geometry]);
+
+  return (
+    <mesh ref={meshRef} geometry={geometry} material={material} />
+  );
+}
+
+// ============================================================================
+// Connection Lines Manager Component
+// ============================================================================
+
+interface ConnectionLinesProps {
+  enabled?: boolean;
+  maxConnections?: number;
+}
+
+export function ConnectionLines({
+  enabled = true,
+  maxConnections = 100,
+}: ConnectionLinesProps) {
+  const agents = useAgentsShallow() as Record<string, any>;
+  const parties = usePartiesShallow() as Record<string, any>;
+  const quests = useQuestsShallow() as Record<string, any>;
+  const structures = useStructuresShallow() as Record<string, any>;
+  const connectionsRef = useRef<AgentConnection[]>([]);
+  const questConnectionsRef = useRef<QuestConnection[]>([]);
+  const lastUpdateRef = useRef(0);
+  const updateInterval = 250; // Update every 250ms (reduced from 100ms for better performance)
+
+  // Find all connections based on agent relationships
+  const updateConnections = useMemo(() => {
+    return () => {
+      const now = Date.now();
+      if (now - lastUpdateRef.current < updateInterval) {
+        return;
+      }
+      lastUpdateRef.current = now;
+
+      const connections: AgentConnection[] = [];
+      const agentList = Object.values(agents);
+      const agentIds = new Set(Object.keys(agents));
+
+      // Track existing connections to update intensity
+      const existingConnections = new Map<string, AgentConnection>();
+      for (const conn of connectionsRef.current) {
+        const key = `${conn.fromAgentId}-${conn.toAgentId}`;
+        existingConnections.set(key, conn);
+      }
+
+      // Find parent-child connections (subagent relationships)
+      // Only check parentId to avoid duplicates - childrenIds array is redundant
+      for (const agent of agentList) {
+        if (agent.parentId && agentIds.has(agent.parentId)) {
+          const parent = agents[agent.parentId];
+          if (parent) {
+            const key = `${parent.id}-${agent.id}`;
+            const existing = existingConnections.get(key);
+
+            connections.push({
+              fromAgentId: parent.id,
+              toAgentId: agent.id,
+              type: "parent-child",
+              startTime: existing?.startTime || now,
+              intensity: existing ? Math.min(1, existing.intensity + 0.1) : 0.3,
+            });
+          }
+        }
+      }
+
+      // Find collaborating agents (agents in WORKING state near each other)
+      for (let i = 0; i < agentList.length; i++) {
+        const agentA = agentList[i];
+        if (agentA.state !== "WORKING" && agentA.state !== "THINKING") continue;
+
+        for (let j = i + 1; j < agentList.length; j++) {
+          const agentB = agentList[j];
+          if (agentB.state !== "WORKING" && agentB.state !== "THINKING") continue;
+
+          // Check distance
+          const posA = new Vector3(...agentA.position);
+          const posB = new Vector3(...agentB.position);
+          const distance = posA.distanceTo(posB);
+
+          // If close enough and both working, show collaboration line
+          if (distance < 8 && distance > 0.5) {
+            const key = `${agentA.id}-${agentB.id}`;
+            const existing = existingConnections.get(key);
+
+            // Only add if not already connected as parent-child
+            const isParentChild = connections.some(
+              (c) =>
+                (c.fromAgentId === agentA.id && c.toAgentId === agentB.id) ||
+                (c.fromAgentId === agentB.id && c.toAgentId === agentA.id)
+            );
+
+            if (!isParentChild) {
+              connections.push({
+                fromAgentId: agentA.id,
+                toAgentId: agentB.id,
+                type: "collaborating",
+                startTime: existing?.startTime || now,
+                intensity: existing ? Math.min(1, existing.intensity + 0.05) : 0.2,
+              });
+            }
+          }
+        }
+      }
+
+      // Find agents moving together (MOVING state, same general direction)
+      const movingAgents = agentList.filter((a) => a.state === "MOVING" && a.targetPosition);
+      for (let i = 0; i < movingAgents.length; i++) {
+        const agentA = movingAgents[i];
+        for (let j = i + 1; j < movingAgents.length; j++) {
+          const agentB = movingAgents[j];
+
+          const posA = new Vector3(...agentA.position);
+          const posB = new Vector3(...agentB.position);
+          const distance = posA.distanceTo(posB);
+
+          // Check if moving to similar targets
+          if (distance < 6 && agentA.targetPosition && agentB.targetPosition) {
+            const targetA = new Vector3(...agentA.targetPosition);
+            const targetB = new Vector3(...agentB.targetPosition);
+            const targetDistance = targetA.distanceTo(targetB);
+
+            // If targets are close, they're moving together
+            if (targetDistance < 4) {
+              const key = `${agentA.id}-${agentB.id}`;
+              const existing = existingConnections.get(key);
+
+              // Avoid duplicates
+              const alreadyConnected = connections.some(
+                (c) =>
+                  (c.fromAgentId === agentA.id && c.toAgentId === agentB.id) ||
+                  (c.fromAgentId === agentB.id && c.toAgentId === agentA.id)
+              );
+
+              if (!alreadyConnected) {
+                connections.push({
+                  fromAgentId: agentA.id,
+                  toAgentId: agentB.id,
+                  type: "moving-together",
+                  startTime: existing?.startTime || now,
+                  intensity: existing ? Math.min(1, existing.intensity + 0.05) : 0.15,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Find agents with shared resources (party members with shared tools)
+      for (const party of Object.values(parties)) {
+        if (!party.sharedResources || party.sharedResources.tools.length === 0) continue;
+
+        const partyMembers = party.memberIds.filter((id: string) => agents[id]);
+        if (partyMembers.length < 2) continue;
+
+        // Create connections between all party members who share resources
+        for (let i = 0; i < partyMembers.length; i++) {
+          for (let j = i + 1; j < partyMembers.length; j++) {
+            const agentAId = partyMembers[i];
+            const agentBId = partyMembers[j];
+            const agentA = agents[agentAId];
+            const agentB = agents[agentBId];
+
+            if (!agentA || !agentB) continue;
+
+            const key = `${agentAId}-${agentBId}`;
+            const existing = existingConnections.get(key);
+
+            // Avoid duplicates
+            const alreadyConnected = connections.some(
+              (c) =>
+                (c.fromAgentId === agentAId && c.toAgentId === agentBId) ||
+                (c.fromAgentId === agentBId && c.toAgentId === agentAId)
+            );
+
+            if (!alreadyConnected) {
+              connections.push({
+                fromAgentId: agentAId,
+                toAgentId: agentBId,
+                type: "shared-resources",
+                startTime: existing?.startTime || now,
+                intensity: 0.25, // Consistent intensity for shared resources
+              });
+            }
+          }
+        }
+      }
+
+      connectionsRef.current = connections.slice(0, maxConnections);
+    };
+  }, [agents, parties, maxConnections]);
+
+  // Find quest connections (agents to their quest target structures)
+  const updateQuestConnections = useMemo(() => {
+    return () => {
+      const now = Date.now();
+      const questConnections: QuestConnection[] = [];
+      
+      for (const [questId, quest] of Object.entries(quests)) {
+        if (quest.assignedAgentIds && quest.assignedAgentIds.length > 0 && quest.targetStructureId) {
+          for (const agentId of quest.assignedAgentIds) {
+            // Check if agent and structure exist
+            if (agents[agentId] && structures[quest.targetStructureId]) {
+              questConnections.push({
+                fromAgentId: agentId,
+                toStructureId: quest.targetStructureId,
+                type: "quest",
+                startTime: now,
+                intensity: 0.6,
+              });
+            }
+          }
+        }
+      }
+      questConnectionsRef.current = questConnections;
+    };
+  }, [agents, quests, structures]);
+
+  // Update connections on each frame
+  useFrame(() => {
+    if (enabled) {
+      updateConnections();
+      updateQuestConnections();
+    }
+  });
+
+  if (!enabled) return null;
+
+  const visibleConnections: Array<{
+    fromAgentId: string;
+    toAgentId: string;
+    type: ConnectionType;
+    intensity: number;
+    age: number;
+  }> = [];
+
+  // Build renderable connections with current positions
+  for (const conn of connectionsRef.current) {
+    const fromAgent = agents[conn.fromAgentId];
+    const toAgent = agents[conn.toAgentId];
+
+    if (!fromAgent || !toAgent) continue;
+
+    visibleConnections.push({
+      ...conn,
+      age: Date.now() - conn.startTime,
+    });
+  }
+
+  // Build renderable quest connections
+  const visibleQuestConnections: Array<{
+    fromAgentId: string;
+    toStructureId: string;
+    type: "quest";
+    intensity: number;
+    age: number;
+  }> = [];
+
+  for (const conn of questConnectionsRef.current) {
+    const fromAgent = agents[conn.fromAgentId];
+    const toStructure = structures[conn.toStructureId];
+
+    if (!fromAgent || !toStructure) continue;
+
+    visibleQuestConnections.push({
+      ...conn,
+      age: Date.now() - conn.startTime,
+    });
+  }
+
+  return (
+    <group>
+      {/* Agent-to-agent connections */}
+      {visibleConnections.map((conn) => {
+        const fromAgent = agents[conn.fromAgentId];
+        const toAgent = agents[conn.toAgentId];
+
+        if (!fromAgent || !toAgent) return null;
+
+        const startPoint = new Vector3(...fromAgent.position);
+        const endPoint = new Vector3(...toAgent.position);
+
+        return (
+          <ConnectionLine
+            key={`agent-${conn.fromAgentId}-${conn.toAgentId}`}
+            startPoint={startPoint}
+            endPoint={endPoint}
+            type={conn.type}
+            intensity={conn.intensity}
+            age={conn.age}
+          />
+        );
+      })}
+      
+      {/* Agent-to-structure quest connections */}
+      {visibleQuestConnections.map((conn) => {
+        const fromAgent = agents[conn.fromAgentId];
+        const toStructure = structures[conn.toStructureId];
+
+        if (!fromAgent || !toStructure) return null;
+
+        const startPoint = new Vector3(...fromAgent.position);
+        const endPoint = new Vector3(...toStructure.position);
+
+        return (
+          <ConnectionLine
+            key={`quest-${conn.fromAgentId}-${conn.toStructureId}`}
+            startPoint={startPoint}
+            endPoint={endPoint}
+            type="quest"
+            intensity={conn.intensity}
+            age={conn.age}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+// ============================================================================
+// Hook for managing connections programmatically
+// ============================================================================
+
+export function useConnectionLines() {
+  const connectionsRef = useRef<AgentConnection[]>([]);
+
+  const addConnection = (
+    fromAgentId: string,
+    toAgentId: string,
+    type: ConnectionType
+  ) => {
+    const connection: AgentConnection = {
+      fromAgentId,
+      toAgentId,
+      type,
+      startTime: Date.now(),
+      intensity: 0.5,
+    };
+
+    // Check for duplicates
+    const exists = connectionsRef.current.some(
+      (c) => c.fromAgentId === fromAgentId && c.toAgentId === toAgentId
+    );
+
+    if (!exists) {
+      connectionsRef.current.push(connection);
+    }
+  };
+
+  const removeConnection = (fromAgentId: string, toAgentId: string) => {
+    connectionsRef.current = connectionsRef.current.filter(
+      (c) => !(c.fromAgentId === fromAgentId && c.toAgentId === toAgentId)
+    );
+  };
+
+  const clearConnections = () => {
+    connectionsRef.current = [];
+  };
+
+  const getConnections = () => {
+    return connectionsRef.current;
+  };
+
+  return {
+    addConnection,
+    removeConnection,
+    clearConnections,
+    getConnections,
+  };
+}
+
+// ============================================================================
+// Connection Legend Component (UI)
+// ============================================================================
+
+export interface ConnectionLegendProps {
+  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+}
+
+export function ConnectionLegend({ position = "bottom-left" }: ConnectionLegendProps) {
+  const positionClasses: Record<typeof position, string> = {
+    "top-left": "top-4 left-4",
+    "top-right": "top-4 right-64", // Next to minimap (minimap is at right-4, this is 256px from right)
+    "bottom-left": "bottom-4 left-4",
+    "bottom-right": "bottom-4 right-4",
+  };
+
+  return (
+    <div className={`absolute ${positionClasses[position]} bg-gray-900/95 border-2 border-[var(--empire-gold)]/50 rounded-lg p-3 text-white text-sm shadow-lg shadow-[var(--empire-gold)]/20 z-10`}>
+      <h4 className="text-[var(--empire-gold)] font-semibold mb-2 rts-text-label">
+        🔗 Connection Lines
+      </h4>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#00d4ff] rounded" style={{ boxShadow: "0 0 6px #00d4ff" }} />
+          <span className="text-gray-300 text-xs">Parent → Child</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#2ecc71] rounded" style={{ boxShadow: "0 0 6px #2ecc71" }} />
+          <span className="text-gray-300 text-xs">Collaborating</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#f4d03f] rounded" style={{ boxShadow: "0 0 6px #f4d03f" }} />
+          <span className="text-gray-300 text-xs">Moving Together</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#f39c12] rounded" style={{ boxShadow: "0 0 6px #f39c12" }} />
+          <span className="text-gray-300 text-xs">Quest Assignment</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#ff9ff3] rounded" style={{ boxShadow: "0 0 6px #ff9ff3" }} />
+          <span className="text-gray-300 text-xs">Shared Resources</span>
+        </div>
+      </div>
+    </div>
+  );
+}

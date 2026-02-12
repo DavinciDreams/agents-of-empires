@@ -6,10 +6,11 @@
 
 import { createDeepAgent } from "deepagents";
 import type { CompiledStateGraph } from "@langchain/langgraph";
-import type { StructuredTool } from "langchain/tools";
+import type { StructuredTool } from "@langchain/core/tools";
 import type { SubAgent } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { createLLM, type LLMProvider } from "./providers";
+import { defaultStoreBackend } from "../backends/store-backend";
 
 /**
  * Agent configuration for registry
@@ -51,6 +52,12 @@ export interface AgentConfig {
   /** Enable checkpointing */
   checkpointer?: boolean;
 
+  /** Backend type */
+  backend?: "state" | "store" | "sandbox";
+
+  /** Sandbox working directory (for sandbox backend) */
+  sandboxWorkingDir?: string;
+
   /** Custom configuration */
   custom?: Record<string, unknown>;
 }
@@ -60,7 +67,7 @@ export interface AgentConfig {
  */
 interface CachedAgent {
   config: AgentConfig;
-  agent: CompiledStateGraph;
+  agent: any;
   createdAt: Date;
   lastUsed: Date;
   usageCount: number;
@@ -112,7 +119,7 @@ export class AgentRegistry {
   /**
    * Get or create an agent
    */
-  async getAgent(agentId: string): Promise<CompiledStateGraph> {
+  async getAgent(agentId: string): Promise<any> {
     // Check if agent is in cache
     const cached = this.agents.get(agentId);
     if (cached) {
@@ -146,9 +153,31 @@ export class AgentRegistry {
   /**
    * Create an agent from configuration
    */
-  private async createAgent(config: AgentConfig): Promise<CompiledStateGraph> {
+  private async createAgent(config: AgentConfig): Promise<any> {
     // Create model
     const model = this.createModel(config.model);
+
+    // Determine backend configuration
+    const backend = config.backend ?? "state";
+    let backendConfig: any;
+    let checkpointer: any = config.checkpointer ?? true;
+    let store: any;
+
+    if (backend === "store") {
+      // Use StoreBackend with MemorySaver
+      backendConfig = defaultStoreBackend.backend;
+      checkpointer = defaultStoreBackend.checkpointer;
+      store = defaultStoreBackend.store;
+    } else if (backend === "sandbox") {
+      // Use sandbox backend
+      const { LocalSandbox } = await import("../sandbox");
+      const workingDir = config.sandboxWorkingDir ?? "./sandbox-workspace";
+      backendConfig = new LocalSandbox({ workingDirectory: workingDir });
+      checkpointer = undefined; // Sandbox backend doesn't use checkpointing
+    } else {
+      // Default to state backend (ephemeral)
+      backendConfig = undefined;
+    }
 
     // Create agent
     const agent = createDeepAgent({
@@ -158,7 +187,9 @@ export class AgentRegistry {
       subagents: config.subagents || [],
       skills: config.skills || [],
       memory: config.memory || [],
-      checkpointer: config.checkpointer ?? true,
+      checkpointer,
+      store,
+      backend: backendConfig,
     });
 
     return agent;
@@ -189,7 +220,7 @@ export class AgentRegistry {
   private cacheAgent(
     agentId: string,
     config: AgentConfig,
-    agent: CompiledStateGraph
+    agent: any
   ): void {
     // Enforce cache size limit
     if (this.agents.size >= this.maxCacheSize) {

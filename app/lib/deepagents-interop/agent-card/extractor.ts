@@ -5,7 +5,7 @@
  * from a DeepAgent configuration.
  */
 
-import type { StructuredTool } from "langchain/tools";
+import type { StructuredTool } from "@langchain/core/tools";
 import type { AgentMiddleware } from "langchain";
 import type { SubAgent } from "deepagents";
 import type {

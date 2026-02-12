@@ -31,8 +31,8 @@ export function stateToA2UI(state: Record<string, unknown>): A2UIMessage[] {
   }
 
   // Transform agent status
-  if (state.status) {
-    messages.push(transformStatus(state.status));
+  if (state.status && typeof state.status === 'object' && state.status !== null && 'state' in state.status) {
+    messages.push(transformStatus(state.status as { state: string; message?: string; progress?: number }));
   }
 
   return messages;
