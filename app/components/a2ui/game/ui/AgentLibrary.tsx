@@ -15,9 +15,12 @@ interface AgentLibraryProps {
 }
 
 export function AgentLibrary({ onClose, onSelectAgent }: AgentLibraryProps) {
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [filterState, setFilterState] = useState<string | null>(null);
+
+  // Memoize to avoid infinite re-renders
+  const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
 
   const selectedAgent = useMemo(() => {
     return selectedAgentId ? agents.find(a => a.id === selectedAgentId) : null;

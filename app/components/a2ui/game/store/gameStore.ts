@@ -13,7 +13,7 @@ enableMapSet();
 
 export type AgentState = "IDLE" | "THINKING" | "MOVING" | "WORKING" | "ERROR" | "COMPLETING" | "COMBAT";
 
-export type ToolType = "search" | "code_executor" | "file_reader" | "web_fetcher" | "subagent";
+export type ToolType = "search" | "code_executor" | "file_reader" | "file_writer" | "web_fetcher" | "subagent" | "grep" | "glob" | "edit" | "bash";
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 
@@ -546,19 +546,129 @@ export const useGameStore = create<GameStore>()(
   spawnAgent: (name, position, agentRef, parentId) => {
     const id = uuidv4();
 
-    // Create default Tavily web search tool for this agent
-    const tavilyTool: Tool = {
-      id: `tavily-${id}`,
-      name: "Tavily Web Search",
-      type: "search",
-      icon: "🌐",
-      description: "Search the web for information using Tavily AI",
-      rarity: "rare",
-      power: 15,
-      cooldownTime: 3000,
-      mastery: 0,
-      experience: 0,
-    };
+    // Create comprehensive DeepAgents toolset for this agent
+    const agentTools: Tool[] = [
+      {
+        id: `read-${id}`,
+        name: "Read",
+        type: "file_reader",
+        icon: "📖",
+        description: "Read files from the filesystem",
+        rarity: "common",
+        power: 5,
+        cooldownTime: 1000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `write-${id}`,
+        name: "Write",
+        type: "file_writer",
+        icon: "✍️",
+        description: "Write new files to the filesystem",
+        rarity: "common",
+        power: 8,
+        cooldownTime: 2000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `edit-${id}`,
+        name: "Edit",
+        type: "edit",
+        icon: "✏️",
+        description: "Edit existing files with string replacements",
+        rarity: "common",
+        power: 10,
+        cooldownTime: 2000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `grep-${id}`,
+        name: "Grep",
+        type: "grep",
+        icon: "🔍",
+        description: "Search file contents with regex patterns",
+        rarity: "rare",
+        power: 12,
+        cooldownTime: 1500,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `glob-${id}`,
+        name: "Glob",
+        type: "glob",
+        icon: "🗂️",
+        description: "Find files by pattern matching",
+        rarity: "rare",
+        power: 10,
+        cooldownTime: 1000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `bash-${id}`,
+        name: "Bash",
+        type: "bash",
+        icon: "⚡",
+        description: "Execute shell commands and scripts",
+        rarity: "epic",
+        power: 20,
+        cooldownTime: 3000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `code-exec-${id}`,
+        name: "Code Executor",
+        type: "code_executor",
+        icon: "🔧",
+        description: "Execute code in sandboxed environments",
+        rarity: "epic",
+        power: 25,
+        cooldownTime: 4000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `tavily-${id}`,
+        name: "Tavily Search",
+        type: "search",
+        icon: "🌐",
+        description: "Search the web with Tavily AI",
+        rarity: "rare",
+        power: 15,
+        cooldownTime: 3000,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `web-fetch-${id}`,
+        name: "Web Fetch",
+        type: "web_fetcher",
+        icon: "🌍",
+        description: "Fetch and process web content",
+        rarity: "rare",
+        power: 15,
+        cooldownTime: 2500,
+        mastery: 0,
+        experience: 0,
+      },
+      {
+        id: `subagent-${id}`,
+        name: "Task Agent",
+        type: "subagent",
+        icon: "🤖",
+        description: "Spawn specialized sub-agents for complex tasks",
+        rarity: "legendary",
+        power: 30,
+        cooldownTime: 5000,
+        mastery: 0,
+        experience: 0,
+      },
+    ];
 
     const agent: GameAgent = {
       id,
@@ -570,7 +680,7 @@ export const useGameStore = create<GameStore>()(
       health: 100,
       maxHealth: 100,
       equippedTool: null,
-      inventory: [tavilyTool], // Start with Tavily search tool
+      inventory: agentTools, // Full DeepAgents toolset
       currentTask: "Awaiting orders...",
       agentRef,
       parentId: parentId || null,

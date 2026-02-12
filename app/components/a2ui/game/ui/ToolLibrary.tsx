@@ -104,7 +104,10 @@ export function ToolLibrary({ onClose, agentId }: ToolLibraryProps) {
           </div>
           {onClose && (
             <button
-              onClick={onClose}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
               className="rts-button text-white w-10 h-10 rounded flex items-center justify-center text-xl"
             >
               ✕
@@ -167,7 +170,7 @@ export function ToolLibrary({ onClose, agentId }: ToolLibraryProps) {
 
         {/* Tool Grid */}
         <div className="flex-1 overflow-y-auto rts-scrollbar p-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {filteredTools.map(tool => (
               <ToolCard
                 key={tool.id}
@@ -233,38 +236,39 @@ function ToolCard({ tool, isSelected, onSelect, agentId }: ToolCardProps) {
 
   return (
     <motion.div
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -2 }}
       onClick={onSelect}
-      className={`hero-card cursor-pointer transition-all ${isSelected ? 'rts-glow-gold' : ''}`}
+      className={`hero-card cursor-pointer transition-all p-3 ${isSelected ? 'rts-glow-gold' : ''}`}
       style={{
         borderColor: isSelected ? 'var(--homm-gold)' : rarityConfig.color,
       }}
     >
       {/* Tool Icon */}
-      <div className="text-5xl text-center mb-3">
+      <div className="text-3xl text-center mb-2">
         {tool.icon}
       </div>
 
       {/* Tool Name */}
       <h4
-        className="rts-text-header text-sm text-center mb-2"
-        style={{ fontFamily: 'Cinzel, serif', fontSize: '0.9rem', color: rarityConfig.color }}
+        className="rts-text-header text-center mb-1 leading-tight"
+        style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', color: rarityConfig.color }}
       >
         {tool.name}
       </h4>
 
       {/* Tool Type */}
-      <div className="text-xs text-center mb-2" style={{ color: 'var(--homm-tan)' }}>
+      <div className="text-xs text-center mb-1" style={{ color: 'var(--homm-tan)', fontSize: '0.65rem' }}>
         {typeConfig?.icon} {typeConfig?.label}
       </div>
 
       {/* Rarity Badge */}
-      <div className="flex justify-center mb-3">
+      <div className="flex justify-center mb-1">
         <span
-          className="px-2 py-1 rounded text-xs font-bold"
+          className="px-1 py-0.5 rounded text-xs font-bold"
           style={{
             background: rarityConfig.color,
             color: '#1a1a2e',
+            fontSize: '0.6rem',
           }}
         >
           {rarityConfig.label}
@@ -273,8 +277,8 @@ function ToolCard({ tool, isSelected, onSelect, agentId }: ToolCardProps) {
 
       {/* Equipped Status */}
       {equippedBy && (
-        <div className="text-xs text-center" style={{ color: 'var(--homm-gold-light)' }}>
-          Equipped by {equippedBy.name}
+        <div className="text-xs text-center truncate" style={{ color: 'var(--homm-gold-light)', fontSize: '0.65rem' }}>
+          {equippedBy.name}
         </div>
       )}
 
@@ -285,7 +289,8 @@ function ToolCard({ tool, isSelected, onSelect, agentId }: ToolCardProps) {
             e.stopPropagation();
             equipTool(agentId, tool);
           }}
-          className="w-full rts-button-success text-xs py-1 rounded mt-2"
+          className="w-full rts-button-success text-xs py-0.5 rounded mt-1"
+          style={{ fontSize: '0.65rem' }}
         >
           Equip
         </button>
