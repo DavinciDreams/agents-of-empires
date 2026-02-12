@@ -154,7 +154,7 @@ export class ExecutionTracker {
           agentId: execution.agentId,
           executionId,
           level: 'info',
-          message: `Progress update: ${progress.currentStep || ''} (${progress.stepsCompleted || 0}/${progress.totalSteps || '?'} steps)`,
+          message: `Progress update: ${progress?.currentStep || ''} (${progress?.stepsCompleted || 0}/${progress?.totalSteps || '?'} steps)`,
           source: 'execution-tracker',
         });
       } catch (error) {

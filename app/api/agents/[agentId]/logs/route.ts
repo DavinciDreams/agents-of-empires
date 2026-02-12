@@ -64,7 +64,7 @@ export async function GET(
       const csv = logsToCSV(
         logs.map((log) => ({
           id: log.id,
-          level: log.level,
+          level: log.level as any,
           message: log.message,
           timestamp: log.timestamp.getTime(),
           source: log.source || '',

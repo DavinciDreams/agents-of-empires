@@ -51,6 +51,21 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
+      // Generate unique execution ID (moved outside try for scope)
+      const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const threadId = `thread_${executionId}`;
+
+      // Track checkpoint data for recovery (moved outside try for catch access)
+      const checkpointData: CheckpointData = {
+        step: 0,
+        task,
+        partialResults: [],
+        toolOutputs: [],
+        agentState: {},
+        timestamp: new Date().toISOString(),
+        metadata: { agentId, checkpointId, executionId },
+      };
+
       // Initialize result record in database
       let resultId: string | null = null;
 
@@ -112,18 +127,6 @@ IMPORTANT: Once you have completed the task, provide a clear final answer. Do no
         const maxRecursion = recursionLimit || 100; // Default: 100 (was 50)
         let iterationCount = 0;
         const toolStartTimes = new Map<string, number>();
-
-        // Track checkpoint data for recovery
-        const checkpointData: CheckpointData = {
-          step: 0,
-          task,
-          partialResults: [],
-          toolOutputs: [],
-          agentState: {},
-          timestamp: new Date().toISOString(),
-          metadata: { agentId, checkpointId, executionId },
-        };
-        const threadId = `thread_${executionId}`;
 
         // Invoke the agent with retry logic
         const result = await retryWithBackoff(

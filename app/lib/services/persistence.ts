@@ -94,7 +94,7 @@ export async function loadCheckpoint(
       return null;
     }
 
-    return checkpoint.state as CheckpointData;
+    return checkpoint.state as unknown as CheckpointData;
   } catch (error) {
     console.error('[Persistence] Failed to load checkpoint:', error);
     throw new Error(`Failed to load checkpoint: ${error instanceof Error ? error.message : 'Unknown error'}`);

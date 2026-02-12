@@ -4,7 +4,7 @@
  * Convert game state (logs, traces, results) to various output formats
  */
 
-import type { LogEntry } from '@/components/a2ui/game/store/gameStore'
+import type { LogEntry } from '@/app/components/a2ui/game/store/gameStore'
 
 /**
  * Format logs as JSON
