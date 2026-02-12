@@ -16,6 +16,7 @@ import { StructurePool } from './entities/Structure';
 import { ConnectionLines } from './entities/ConnectionLines';
 import { CheckpointManager } from './entities/CheckpointManager';
 import { HUD } from './ui/HUD';
+import { HUD_v2 } from './ui/HUD_v2';
 import { Tutorial } from './ui/Tutorial';
 import { AgentBridgeProvider } from './bridge/AgentBridge';
 import { useGameStore } from './store/gameStore';
@@ -132,7 +133,9 @@ export function GameScene() {
         </Canvas>
 
         {/* UI Overlay (rendered outside Canvas) */}
-        <HUD />
+        {/* TODO: Remove HUD and use HUD_v2 */}
+        {/* <HUD /> */}
+        <HUD_v2 />
 
         {/* Tutorial System */}
         <Tutorial />
