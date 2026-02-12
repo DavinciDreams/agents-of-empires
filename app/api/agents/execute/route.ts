@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * Streams progress updates via Server-Sent Events
  */
 export async function POST(request: NextRequest) {
-  const { agentId, checkpointId, task, estimatedTokens } = await request.json();
+  const { agentId, checkpointId, task, estimatedTokens, recursionLimit } = await request.json();
 
   if (!task || typeof task !== "string") {
     return new Response(
@@ -67,12 +67,18 @@ export async function POST(request: NextRequest) {
 
 Focus on the specific task given. Break it down into steps if needed, and execute each step methodically.
 
-You have access to a web search tool to research information when needed.`,
+You have access to a web search tool to research information when needed.
+
+IMPORTANT: Once you have completed the task, provide a clear final answer. Do not enter loops or repeatedly call the same tool with the same inputs. If a tool fails, try a different approach or explain the limitation.`,
           tools: [tavilySearch],
         });
 
         // Send thinking event
         send("thinking", { message: `Analyzing task: ${task}` });
+
+        // Use configurable recursion limit with higher default
+        const maxRecursion = recursionLimit || 100; // Default: 100 (was 50)
+        let iterationCount = 0;
 
         // Invoke the agent
         const result = await agent.invoke(
@@ -80,14 +86,23 @@ You have access to a web search tool to research information when needed.`,
             messages: [new HumanMessage(task)],
           },
           {
-            recursionLimit: 50,
+            recursionLimit: maxRecursion,
             // Stream callback to send progress updates
             callbacks: [{
               handleLLMNewToken(token: string) {
                 send("token", { token });
               },
               handleToolStart(tool: any, input: string) {
-                send("tool_start", { tool: tool.name, input });
+                iterationCount++;
+                // Warn when approaching limit
+                if (iterationCount >= maxRecursion * 0.8) {
+                  send("warning", {
+                    message: `Agent approaching iteration limit (${iterationCount}/${maxRecursion})`,
+                    iterationCount,
+                    maxRecursion
+                  });
+                }
+                send("tool_start", { tool: tool.name, input, iteration: iterationCount });
               },
               handleToolEnd(output: string) {
                 send("tool_end", { output });
@@ -118,8 +133,20 @@ You have access to a web search tool to research information when needed.`,
         controller.close();
       } catch (error) {
         console.error("[Agent Execution] Error:", error);
+
+        // Detect recursion limit errors and provide helpful guidance
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const isRecursionLimit = errorMessage.includes("Recursion limit") || errorMessage.includes("recursion");
+
         send("error", {
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: errorMessage,
+          type: isRecursionLimit ? "recursion_limit" : "execution_error",
+          suggestions: isRecursionLimit ? [
+            "The task may be too complex - try breaking it into smaller checkpoints",
+            "The agent may be stuck in a loop - rephrase the task more specifically",
+            "Increase recursionLimit in the request (current: 100, try: 150 or 200)",
+            "Check Intelligence Bureau for repeated tool calls"
+          ] : undefined,
         });
         controller.close();
       }
