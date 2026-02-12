@@ -36,6 +36,80 @@ const STATE_DURATIONS = {
 // ============================================================================
 
 /**
+ * Advance agent to the next checkpoint in the quest
+ */
+async function advanceToNextCheckpoint(agentId: string, questId: string) {
+  const store = useGameStore.getState();
+  const agent = store.agents[agentId];
+  const quest = store.quests[questId];
+
+  if (!agent || !quest) {
+    console.warn(`[advanceToNextCheckpoint] Agent or quest not found`);
+    return;
+  }
+
+  if (!quest.checkpointIds || quest.checkpointIds.length === 0) {
+    console.warn(`[advanceToNextCheckpoint] Quest has no checkpoints`);
+    return;
+  }
+
+  // Find current checkpoint index
+  const currentCheckpointIndex = quest.checkpointIds.indexOf(agent.currentCheckpointId || '');
+
+  if (currentCheckpointIndex === -1) {
+    console.warn(`[advanceToNextCheckpoint] Current checkpoint not found in quest`);
+    return;
+  }
+
+  // Check if there's a next checkpoint
+  const nextCheckpointIndex = currentCheckpointIndex + 1;
+
+  if (nextCheckpointIndex >= quest.checkpointIds.length) {
+    // No more checkpoints - quest is complete!
+    store.addLog('success', `🎉 Quest "${quest.title}" completed!`, 'quest');
+    store.completeQuest(questId);
+    store.updateAgent(agentId, {
+      state: 'IDLE',
+      currentQuestId: undefined,
+      currentCheckpointId: undefined,
+      currentStepDescription: undefined,
+      currentTask: 'Quest completed!',
+      executionProgress: undefined
+    });
+    return;
+  }
+
+  // Move to next checkpoint
+  const nextCheckpointId = quest.checkpointIds[nextCheckpointIndex];
+  const nextCheckpoint = store.checkpoints[nextCheckpointId];
+
+  if (!nextCheckpoint) {
+    console.warn(`[advanceToNextCheckpoint] Next checkpoint not found: ${nextCheckpointId}`);
+    return;
+  }
+
+  store.addLog('info', `📍 Moving to checkpoint ${nextCheckpoint.stepNumber}`, 'agent');
+
+  // Update agent to move to next checkpoint
+  store.updateAgent(agentId, {
+    currentCheckpointId: nextCheckpointId,
+    currentStepDescription: nextCheckpoint.description,
+    targetPosition: nextCheckpoint.position,
+    state: 'MOVING',
+    currentTask: `Moving to checkpoint ${nextCheckpoint.stepNumber}`,
+    executionProgress: {
+      currentStep: nextCheckpointIndex + 1,
+      totalSteps: quest.checkpointIds.length,
+      percentComplete: ((nextCheckpointIndex + 1) / quest.checkpointIds.length) * 100,
+      startedAt: Date.now(),
+    }
+  });
+
+  // Mark next checkpoint as active
+  store.updateCheckpoint(nextCheckpointId, { status: 'active' });
+}
+
+/**
  * Execute a checkpoint task by invoking the Deep Agent
  */
 async function executeCheckpointTask(agentId: string, checkpointId: string) {
@@ -138,6 +212,9 @@ async function executeCheckpointTask(agentId: string, checkpointId: string) {
               store.completeCheckpoint(checkpointId, data.output || 'Completed', finalTokens);
               store.updateAgent(agentId, { state: 'COMPLETING' });
               store.addLog('success', `✅ Checkpoint completed (${finalTokens} tokens)`, 'agent');
+
+              // Automatically advance to next checkpoint
+              await advanceToNextCheckpoint(agentId, checkpoint.questId);
               break;
 
             case 'error':
