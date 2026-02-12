@@ -51,6 +51,22 @@ export class LocalSandbox extends BaseSandbox {
   }
 
   /**
+   * Get the working directory path
+   */
+  getWorkingDirectory(): string {
+    return this.workingDirectory;
+  }
+
+  /**
+   * Ensure workspace directory exists (for tools)
+   */
+  async ensureWorkspace(): Promise<void> {
+    if (!fs.existsSync(this.workingDirectory)) {
+      fs.mkdirSync(this.workingDirectory, { recursive: true });
+    }
+  }
+
+  /**
    * Execute a shell command in the sandbox.
    *
    * Uses /bin/bash to run commands with proper shell interpretation.

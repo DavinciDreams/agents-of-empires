@@ -32,6 +32,130 @@ const STATE_DURATIONS = {
 } as const;
 
 // ============================================================================
+// Checkpoint Execution
+// ============================================================================
+
+/**
+ * Execute a checkpoint task by invoking the Deep Agent
+ */
+async function executeCheckpointTask(agentId: string, checkpointId: string) {
+  const store = useGameStore.getState();
+  const agent = store.agents[agentId];
+  const checkpoint = store.checkpoints[checkpointId];
+
+  if (!agent || !checkpoint) {
+    console.warn(`[executeCheckpointTask] Agent or checkpoint not found`);
+    return;
+  }
+
+  // Log the execution start
+  store.addLog('info', `🎯 Agent executing: ${checkpoint.description}`, 'agent');
+
+  // Update checkpoint status to active
+  store.updateCheckpoint(checkpointId, { status: 'active' });
+
+  try {
+    // Call the streaming API endpoint to execute the task
+    const response = await fetch('/api/agents/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId,
+        checkpointId,
+        task: checkpoint.description,
+        estimatedTokens: checkpoint.estimatedTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to execute checkpoint: ${response.statusText}`);
+    }
+
+    // Parse SSE stream
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    let buffer = '';
+    let tokenCount = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        const eventMatch = line.match(/^event: (.+)$/m);
+        const dataMatch = line.match(/^data: (.+)$/m);
+
+        if (eventMatch && dataMatch) {
+          const event = eventMatch[1];
+          const data = JSON.parse(dataMatch[1]);
+
+          switch (event) {
+            case 'start':
+              store.updateAgent(agentId, { state: 'THINKING' });
+              store.addLog('debug', `🔄 Task started`, 'agent');
+              break;
+
+            case 'thinking':
+              store.updateAgent(agentId, { state: 'THINKING' });
+              if (data.message) {
+                store.addLog('debug', `💭 ${data.message}`, 'agent');
+              }
+              break;
+
+            case 'token':
+              tokenCount++;
+              // Update token count periodically (every 50 tokens)
+              if (tokenCount % 50 === 0) {
+                store.updateTokenUsage(agentId, tokenCount);
+              }
+              break;
+
+            case 'tool_start':
+              store.addLog('info', `🔧 Using tool: ${data.tool}`, 'agent');
+              break;
+
+            case 'tool_end':
+              store.addLog('success', `✅ Tool completed`, 'agent');
+              break;
+
+            case 'tool_error':
+              store.addLog('error', `❌ Tool error: ${data.error}`, 'agent');
+              break;
+
+            case 'complete':
+              const finalTokens = data.tokens || tokenCount;
+              store.completeCheckpoint(checkpointId, data.output || 'Completed', finalTokens);
+              store.updateAgent(agentId, { state: 'COMPLETING' });
+              store.addLog('success', `✅ Checkpoint completed (${finalTokens} tokens)`, 'agent');
+              break;
+
+            case 'error':
+              throw new Error(data.error);
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('[executeCheckpointTask] Error:', error);
+    store.addLog('error', `❌ Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'agent');
+    store.updateCheckpoint(checkpointId, { status: 'pending' });
+    store.updateAgent(agentId, { state: 'ERROR' });
+  }
+}
+
+// ============================================================================
 // Game Hook
 // ============================================================================()
 
@@ -83,12 +207,20 @@ export function useGame(config: GameConfig = DEFAULT_CONFIG) {
         const distance = direction.length();
 
         if (distance < 0.1) {
+          // Agent reached target - check if it's a checkpoint
+          const shouldStartWork = agent.currentTask && agent.currentCheckpointId;
+
           store.updateAgent(agent.id, {
             position: [target.x, target.y, target.z],
             targetPosition: null,
             currentPath: null,
-            state: agent.currentTask ? "WORKING" : "IDLE",
+            state: shouldStartWork ? "WORKING" : "IDLE",
           });
+
+          // If this is a checkpoint, invoke the Deep Agent to execute the task
+          if (shouldStartWork) {
+            executeCheckpointTask(agent.id, agent.currentCheckpointId!);
+          }
           return;
         }
 
@@ -117,13 +249,20 @@ export function useGame(config: GameConfig = DEFAULT_CONFIG) {
         // Check if we've reached the final destination
         if (agent.pathIndex + 1 >= agent.currentPath.length) {
           const finalTarget = new Vector3(...agent.targetPosition);
+          const shouldStartWork = agent.currentTask && agent.currentCheckpointId;
+
           store.updateAgent(agent.id, {
             position: [finalTarget.x, finalTarget.y, finalTarget.z],
             targetPosition: null,
             currentPath: null,
             pathIndex: 0,
-            state: agent.currentTask ? "WORKING" : "IDLE",
+            state: shouldStartWork ? "WORKING" : "IDLE",
           });
+
+          // If this is a checkpoint, invoke the Deep Agent to execute the task
+          if (shouldStartWork) {
+            executeCheckpointTask(agent.id, agent.currentCheckpointId!);
+          }
         }
       } else {
         // Move towards next waypoint

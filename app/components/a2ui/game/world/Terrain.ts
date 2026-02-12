@@ -103,15 +103,18 @@ class ValueNoise {
 // Terrain Generator
 // ============================================================================
 
-export function generateTerrain(config: TerrainConfig): Record<string, { x: number; z: number; type: TileType; walkable: boolean }> {
+export function generateTerrain(config: TerrainConfig): Record<string, { x: number; z: number; type: TileType; walkable: boolean; height: number }> {
   const { width, height, seed = 12345 } = config;
   const noise = new ValueNoise(seed, Math.max(width, height));
-  const tiles: Record<string, { x: number; z: number; type: TileType; walkable: boolean }> = {};
+  const tiles: Record<string, { x: number; z: number; type: TileType; walkable: boolean; height: number }> = {};
 
   for (let x = 0; x < width; x++) {
     for (let z = 0; z < height; z++) {
       // Get noise value (0 to 1)
       const noiseValue = noise.getNoise(x / 10, z / 10, 4);
+
+      // Map noise to height (0-4 units)
+      const heightValue = noiseValue * 4;
 
       // Determine biome based on noise
       let type: TileType;
@@ -145,7 +148,7 @@ export function generateTerrain(config: TerrainConfig): Record<string, { x: numb
       }
 
       const key = `${x},${z}`;
-      tiles[key] = { x, z, type, walkable };
+      tiles[key] = { x, z, type, walkable, height: heightValue };
     }
   }
 

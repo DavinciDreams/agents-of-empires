@@ -23,6 +23,9 @@ importers:
       '@langchain/openai':
         specifier: ^1.2.4
         version: 1.2.4(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))
+      '@langchain/tavily':
+        specifier: ^1.2.0
+        version: 1.2.0(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))
       '@react-three/drei':
         specifier: ^9.121.4
         version: 9.122.0(@react-three/fiber@9.5.0(@types/react@19.2.10)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.173.0))(@types/react@19.2.10)(@types/three@0.173.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.173.0)(use-sync-external-store@1.6.0(react@19.2.3))
@@ -47,6 +50,9 @@ importers:
       langchain:
         specifier: ^1.2.15
         version: 1.2.16(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))(openai@6.17.0(zod@4.3.6))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      langsmith:
+        specifier: ^0.5.2
+        version: 0.5.2(openai@6.17.0(zod@4.3.6))
       next:
         specifier: 16.1.6
         version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2562,8 +2568,8 @@ packages:
     peerDependencies:
       '@langchain/core': 1.1.18
 
-  langsmith@0.4.12:
-    resolution: {integrity: sha512-YWt0jcGvKqjUgIvd78rd4QcdMss0lUkeUaqp0UpVRq7H2yNDx8H5jOUO/laWUmaPtWGgcip0qturykXe1g9Gqw==}
+  langsmith@0.5.2:
+    resolution: {integrity: sha512-CfkcQsiajtTWknAcyItvJsKEQdY2VgDpm6U8pRI9wnM07mevnOv5EF+RcqWGwx37SEUxtyi2RXMwnKW8b06JtA==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -4147,7 +4153,7 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.4.12(openai@6.17.0(zod@4.3.6))
+      langsmith: 0.5.2(openai@6.17.0(zod@4.3.6))
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 10.0.0
@@ -6047,7 +6053,7 @@ snapshots:
       '@langchain/core': 1.1.18(openai@6.17.0(zod@4.3.6))
       '@langchain/langgraph': 1.1.2(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.18(openai@6.17.0(zod@4.3.6)))
-      langsmith: 0.4.12(openai@6.17.0(zod@4.3.6))
+      langsmith: 0.5.2(openai@6.17.0(zod@4.3.6))
       uuid: 10.0.0
       zod: 4.3.6
     transitivePeerDependencies:
@@ -6059,7 +6065,7 @@ snapshots:
       - react-dom
       - zod-to-json-schema
 
-  langsmith@0.4.12(openai@6.17.0(zod@4.3.6)):
+  langsmith@0.5.2(openai@6.17.0(zod@4.3.6)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2

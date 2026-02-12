@@ -528,26 +528,36 @@ export interface ConnectionLegendProps {
 export function ConnectionLegend({ position = "bottom-left" }: ConnectionLegendProps) {
   const positionClasses: Record<typeof position, string> = {
     "top-left": "top-4 left-4",
-    "top-right": "top-52 right-4", // Position below minimap (which is 220px tall + margins)
+    "top-right": "top-4 right-64", // Next to minimap (minimap is at right-4, this is 256px from right)
     "bottom-left": "bottom-4 left-4",
     "bottom-right": "bottom-4 right-4",
   };
 
   return (
-    <div className={`absolute ${positionClasses[position]} bg-gray-900/90 border border-gray-700 rounded-lg p-3 text-white text-sm z-10`}>
-      <h4 className="text-empire-gold font-semibold mb-2">Connection Types</h4>
-      <div className="space-y-1">
+    <div className={`absolute ${positionClasses[position]} bg-gray-900/95 border-2 border-[var(--empire-gold)]/50 rounded-lg p-3 text-white text-sm shadow-lg shadow-[var(--empire-gold)]/20 z-10`}>
+      <h4 className="text-[var(--empire-gold)] font-semibold mb-2 rts-text-label">
+        🔗 Connection Lines
+      </h4>
+      <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-0.5 bg-[#00d4ff]" style={{ boxShadow: "0 0 4px #00d4ff" }} />
-          <span className="text-gray-300">Parent-Child (Subagent)</span>
+          <div className="w-8 h-1 bg-[#00d4ff] rounded" style={{ boxShadow: "0 0 6px #00d4ff" }} />
+          <span className="text-gray-300 text-xs">Parent → Child</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-0.5 bg-[#2ecc71]" style={{ boxShadow: "0 0 4px #2ecc71" }} />
-          <span className="text-gray-300">Collaborating</span>
+          <div className="w-8 h-1 bg-[#2ecc71] rounded" style={{ boxShadow: "0 0 6px #2ecc71" }} />
+          <span className="text-gray-300 text-xs">Collaborating</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-0.5 bg-[#f4d03f]" style={{ boxShadow: "0 0 4px #f4d03f" }} />
-          <span className="text-gray-300">Moving Together</span>
+          <div className="w-8 h-1 bg-[#f4d03f] rounded" style={{ boxShadow: "0 0 6px #f4d03f" }} />
+          <span className="text-gray-300 text-xs">Moving Together</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#f39c12] rounded" style={{ boxShadow: "0 0 6px #f39c12" }} />
+          <span className="text-gray-300 text-xs">Quest Assignment</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-1 bg-[#ff9ff3] rounded" style={{ boxShadow: "0 0 6px #ff9ff3" }} />
+          <span className="text-gray-300 text-xs">Shared Resources</span>
         </div>
       </div>
     </div>

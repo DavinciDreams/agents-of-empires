@@ -6,11 +6,15 @@ import { GameState, GameLoop } from './core/Game';
 import { CameraController } from './core/CameraController';
 import { SelectionSystem } from './core/SelectionSystem';
 import { WorldGrid } from './world/WorldManager';
+import { EnhancedTerrain } from './world/EnhancedTerrain';
+import { WaterPlane } from './world/WaterPlane';
+import { NaturalFeatures } from './world/NaturalFeatures';
 import { AgentPool } from './entities/GameAgent';
 import { InitialAgents } from './entities/AgentPool';
 import { DragonPool } from './entities/Dragon';
 import { StructurePool } from './entities/Structure';
 import { ConnectionLines } from './entities/ConnectionLines';
+import { CheckpointManager } from './entities/CheckpointManager';
 import { HUD } from './ui/HUD';
 import { Tutorial } from './ui/Tutorial';
 import { AgentBridgeProvider } from './bridge/AgentBridge';
@@ -87,10 +91,10 @@ export function GameScene() {
           }}
           className="w-full h-full"
         >
-          {/* Lighting */}
-          <ambientLight intensity={0.4} />
+          {/* Lighting - Enhanced for natural atmosphere */}
+          <ambientLight intensity={0.45} color="#f0f0e8" />
           <directionalLight
-            position={[50, 50, 25]}
+            position={[60, 60, 30]}
             intensity={0.8}
             castShadow
             shadow-mapSize-width={2048}
@@ -102,8 +106,8 @@ export function GameScene() {
             shadow-camera-bottom={-50}
           />
 
-          {/* Fog for depth */}
-          <fog attach="fog" args={['#1a1a2e', 50, 150]} />
+          {/* Fog for depth - Enhanced for terrain */}
+          <fog attach="fog" args={['#1a1a2e', 40, 120]} />
 
           {/* Game Systems */}
           <GameLoop />
@@ -115,12 +119,15 @@ export function GameScene() {
 
           {/* World and Entities */}
           <Suspense fallback={null}>
-            <WorldGrid width={50} height={50} />
+            <EnhancedTerrain width={50} height={50} />
+            <WaterPlane />
+            <NaturalFeatures />
             <InitialAgents count={10} />
             <AgentPool onAgentClick={handleAgentClick} />
             <DragonPool />
             <StructurePool />
             <ConnectionLines />
+            <CheckpointManager />
           </Suspense>
         </Canvas>
 

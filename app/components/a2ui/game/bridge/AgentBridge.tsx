@@ -45,7 +45,12 @@ export type AgentEventType =
   | "file:read"
   | "error:occurred"
   | "goal:completed"
-  | "agent:moving";
+  | "agent:moving"
+  | "agent:step_started"
+  | "agent:step_completed"
+  | "agent:progress_update"
+  | "agent:token_update"
+  | "agent:checkpoint_reached";
 
 // ============================================================================
 // Event Mappings
@@ -64,6 +69,11 @@ const EVENT_TO_STATE: Record<AgentEventType, AgentState> = {
   "error:occurred": "ERROR",
   "goal:completed": "COMPLETING",
   "agent:moving": "MOVING",
+  "agent:step_started": "WORKING",
+  "agent:step_completed": "IDLE",
+  "agent:progress_update": "WORKING",
+  "agent:token_update": "WORKING",
+  "agent:checkpoint_reached": "IDLE",
 };
 
 const ERROR_TO_DRAGON_TYPE = (error: string): DragonType => {
@@ -118,6 +128,8 @@ export function useAgentBridge() {
         setAgentState(agentId, targetState);
       }
 
+      const store = useGameStore.getState();
+
       // Set thought bubble for thinking
       if (event.type === "agent:thinking" && event.data?.thought) {
         setThoughtBubble(agentId, event.data.thought);
@@ -127,9 +139,100 @@ export function useAgentBridge() {
       if (event.type === "tool:call:complete" || event.type === "goal:completed") {
         setThoughtBubble(agentId, null);
       }
+
+      // Handle checkpoint-specific events
+      switch (event.type) {
+        case "agent:step_started":
+          store.updateAgent(agentId, {
+            currentStepDescription: event.data?.description || "Processing...",
+            state: "WORKING",
+          });
+          setThoughtBubble(agentId, event.data?.description || "Working on task...");
+          store.addLog('info', `🔄 Agent started step: ${event.data?.description}`, 'agent');
+          break;
+
+        case "agent:step_completed":
+          if (event.data?.checkpointId) {
+            store.completeCheckpoint(
+              event.data.checkpointId,
+              event.data.result || "Completed",
+              event.data.tokens || 0
+            );
+            moveToNextCheckpoint(agentId);
+            store.addLog('success', `✅ Agent completed step (${event.data.tokens || 0} tokens)`, 'agent');
+          }
+          break;
+
+        case "agent:token_update":
+          if (event.data?.tokens) {
+            store.updateTokenUsage(agentId, event.data.tokens);
+            store.addLog('debug', `📊 Token update: ${event.data.tokens} tokens used`, 'agent');
+          }
+          break;
+
+        case "agent:progress_update":
+          if (event.data?.progress) {
+            store.updateAgentProgress(agentId, event.data.progress);
+            store.addLog('debug', `📈 Progress: ${event.data.progress.percentComplete}%`, 'agent');
+          }
+          break;
+
+        case "agent:checkpoint_reached":
+          if (event.data?.checkpointId) {
+            store.setAgentCheckpoint(agentId, event.data.checkpointId);
+            store.addLog('info', `🎯 Agent reached checkpoint`, 'agent');
+          }
+          break;
+      }
     },
     [setAgentState, setThoughtBubble]
   );
+
+  // Move agent to next checkpoint in sequence
+  const moveToNextCheckpoint = useCallback((agentId: string) => {
+    const store = useGameStore.getState();
+    const agent = store.agents[agentId];
+
+    if (!agent.currentQuestId) return;
+
+    const quest = store.quests[agent.currentQuestId];
+    if (!quest || !quest.checkpointIds) return;
+
+    const currentIndex = quest.checkpointIds.findIndex(
+      (id) => id === agent.currentCheckpointId
+    );
+
+    if (currentIndex < quest.checkpointIds.length - 1) {
+      // Move to next checkpoint
+      const nextCheckpointId = quest.checkpointIds[currentIndex + 1];
+      const nextCheckpoint = store.checkpoints[nextCheckpointId];
+
+      if (nextCheckpoint) {
+        store.setAgentCheckpoint(agentId, nextCheckpointId);
+        store.setAgentTarget(agentId, nextCheckpoint.position);
+        store.setAgentState(agentId, "MOVING");
+
+        // Update progress
+        store.updateAgentProgress(agentId, {
+          currentStep: currentIndex + 2,
+          totalSteps: quest.checkpointIds.length,
+          percentComplete: ((currentIndex + 2) / quest.checkpointIds.length) * 100,
+        });
+      }
+    } else {
+      // Quest complete
+      store.updateQuest(quest.id, { status: "completed" });
+      store.setAgentState(agentId, "COMPLETING");
+      setThoughtBubble(agentId, "Quest complete!");
+
+      // Clear checkpoint data
+      store.updateAgent(agentId, {
+        currentQuestId: undefined,
+        currentCheckpointId: undefined,
+        currentStepDescription: undefined,
+      });
+    }
+  }, [setThoughtBubble]);
 
   // Handle tool call visualization
   const handleToolCall = useCallback(
@@ -231,11 +334,35 @@ export function useAgentBridge() {
       setThoughtBubble(agentId, "🤔 Processing...");
 
       try {
-        // Invoke the agent via API route
+        // Get agent configuration for backend
+        const agentData = agent.agentRef || {};
+        const agentName = agent.name;
+        const equippedTool = agent.equippedTool;
+
+        // Invoke the agent via API route with configuration
         const response = await fetch(`/api/agents/${agentId}/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({
+            task: message,
+            context: {
+              agentConfig: {
+                name: agentName,
+                description: `Game agent ${agentName}`,
+                equippedTool,
+                systemPrompt: `You are ${agentName}, a helpful AI agent in a game world. ${
+                  equippedTool
+                    ? `You are equipped with the ${equippedTool.name} tool, which gives you ${equippedTool.description}. `
+                    : ''
+                }Work collaboratively with other agents to complete quests and achieve goals.`,
+              },
+            },
+            config: {
+              threadId: agentId, // Use agentId as thread for conversation persistence
+              model: agentData.config?.model || "claude-sonnet-4-20250514",
+              temperature: agentData.config?.temperature ?? 0,
+            },
+          }),
         });
 
         if (!response.ok) {
@@ -272,22 +399,28 @@ export function useAgentBridge() {
                       syncVisualState(agentId, agentEvent);
 
                       // Handle specific event types
+                      const store = useGameStore.getState();
                       switch (agentEvent.type) {
                         case "tool:call:start":
                           handleToolCall(agentId, agentEvent.data?.tool || "tool", "start");
+                          store.addLog('info', `🔧 Tool call started: ${agentEvent.data?.tool}`, 'agent');
                           break;
                         case "tool:call:complete":
                           handleToolCall(agentId, agentEvent.data?.tool || "tool", "complete");
+                          store.addLog('success', `✅ Tool call completed: ${agentEvent.data?.tool}`, 'agent');
                           break;
                         case "tool:call:error":
                           handleToolCall(agentId, agentEvent.data?.tool || "tool", "error");
                           handleError(agentId, agentEvent.data?.error || "Tool call failed");
+                          store.addLog('error', `❌ Tool call error: ${agentEvent.data?.error}`, 'agent');
                           break;
                         case "error:occurred":
                           handleError(agentId, agentEvent.data?.error || "Unknown error");
+                          store.addLog('error', `❌ Error: ${agentEvent.data?.error}`, 'agent');
                           break;
                         case "subagent:spawned":
                           handleSubagentSpawn(agentId, agentEvent.data?.name || "Subagent");
+                          store.addLog('info', `👥 Subagent spawned: ${agentEvent.data?.name}`, 'agent');
                           break;
                       }
                     }
@@ -329,6 +462,7 @@ export function useAgentBridge() {
     handleSubagentSpawn,
     handleFileRead,
     handleFileWrite,
+    moveToNextCheckpoint,
   };
 }
 

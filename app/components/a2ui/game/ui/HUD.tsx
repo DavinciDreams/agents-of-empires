@@ -12,6 +12,12 @@ import { useAgentBridge } from '@/app/components/a2ui/game/bridge/AgentBridge';
 import { PartyPanel } from "./PartyPanel";
 import { StructureInfoPanel } from "./StructureInfoPanel";
 import { ThemeToggle } from "./ThemeToggle";
+import { FleetCommand } from "./FleetCommand";
+import { ConnectionLegend } from "@/app/components/a2ui/game/entities/ConnectionLines";
+import { IntelligenceBureau } from "./IntelligenceBureau";
+import { ChatCommander } from "./ChatCommander";
+import { AgentProgressHUD } from "./AgentProgressHUD";
+import { LogsViewer } from "./LogsViewer";
 
 // ============================================================================
 // Minimap Component
@@ -43,91 +49,235 @@ export function Minimap({ width = 220, height = 220 }: MinimapProps) {
       initial={{ opacity: 0, x: 50, y: -20 }}
       animate={{ opacity: 1, x: 0, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="absolute top-4 right-4 bg-gray-900/95 border-2 border-empire-gold rounded-lg overflow-hidden shadow-lg shadow-empire-gold/20"
+      className="absolute top-4 right-4 pointer-events-auto bg-gray-900/95 border-2 border-[var(--empire-gold)] rounded-lg overflow-hidden shadow-lg shadow-[var(--empire-gold)]/20"
       style={{ width, height }}
     >
       {/* Classic RTS minimap header */}
-      <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-empire-gold/20 to-transparent pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[var(--empire-gold)]/20 to-transparent pointer-events-none" />
 
       <svg width={width} height={height} className="w-full h-full">
-        {/* Background - classic RTS dark terrain */}
-        <rect width={width} height={height} fill="#1a1a2e" />
-        <rect width={width} height={height} fill="url(#terrainPattern)" opacity={0.3} />
-
-        {/* Terrain pattern definition */}
+        {/* Definitions */}
         <defs>
-          <pattern id="terrainPattern" patternUnits="userSpaceOnUse" width={20} height={20}>
-            <rect width={20} height={20} fill="#1a1a2e" />
-            <circle cx={10} cy={10} r={0.5} fill="#2a2a3e" />
+          {/* Terrain gradient - gives depth/landscape feel */}
+          <radialGradient id="terrainGradient" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#2a4a2e" />
+            <stop offset="50%" stopColor="#1f3a26" />
+            <stop offset="100%" stopColor="#14261a" />
+          </radialGradient>
+
+          {/* Grid pattern for tactical overlay */}
+          <pattern id="gridPattern" patternUnits="userSpaceOnUse" width={20} height={20}>
+            <rect width={20} height={20} fill="none" />
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#2a3a2e" strokeWidth={0.5} />
+          </pattern>
+
+          {/* Topographical lines for landscape effect */}
+          <pattern id="topoPattern" patternUnits="userSpaceOnUse" width={40} height={40}>
+            <ellipse cx={20} cy={20} rx={15} ry={12} fill="none" stroke="#334d33" strokeWidth={0.5} opacity={0.3} />
+            <ellipse cx={20} cy={20} rx={10} ry={8} fill="none" stroke="#2d442d" strokeWidth={0.5} opacity={0.3} />
           </pattern>
         </defs>
 
-        {/* Structures - marked with distinctive icons */}
-        {structures.map((structure) => (
-          <g key={structure.id}>
-            <circle
-              cx={structure.position[0] * scale}
-              cy={structure.position[2] * scale}
-              r={structure.type === "castle" ? 6 : structure.type === "workshop" ? 5 : 4}
-              fill="#f39c12"
-              opacity={0.7}
-            />
-            {/* Structure border for visibility */}
-            <circle
-              cx={structure.position[0] * scale}
-              cy={structure.position[2] * scale}
-              r={structure.type === "castle" ? 6 : structure.type === "workshop" ? 5 : 4}
-              fill="none"
-              stroke="#f4d03f"
-              strokeWidth={1}
-            />
-          </g>
-        ))}
+        {/* Base terrain with gradient */}
+        <rect width={width} height={height} fill="url(#terrainGradient)" />
 
-        {/* Dragons - enemies marked in red */}
-        {dragons.map((dragon) => (
-          <g key={dragon.id}>
-            <circle
-              cx={dragon.position[0] * scale}
-              cy={dragon.position[2] * scale}
-              r={4}
-              fill="#e74c3c"
-            />
-            {/* Pulsing effect for enemies */}
-            <circle
-              cx={dragon.position[0] * scale}
-              cy={dragon.position[2] * scale}
-              r={6}
-              fill="none"
-              stroke="#e74c3c"
-              strokeWidth={1}
-              opacity={0.5}
-            />
-          </g>
-        ))}
+        {/* Topographical overlay */}
+        <rect width={width} height={height} fill="url(#topoPattern)" opacity={0.4} />
 
-        {/* Agents - friendly units in blue */}
-        {agents.map((agent) => (
-          <g key={agent.id}>
-            <circle
-              cx={agent.position[0] * scale}
-              cy={agent.position[2] * scale}
-              r={selectedAgentIds.has(agent.id) ? 5 : 3}
-              fill={selectedAgentIds.has(agent.id) ? "#f4d03f" : "#3498db"}
-            />
-            {/* Selection ring for selected agents */}
-            {selectedAgentIds.has(agent.id) && (
+        {/* Tactical grid */}
+        <rect width={width} height={height} fill="url(#gridPattern)" opacity={0.6} />
+
+        {/* Border glow for depth */}
+        <rect
+          width={width}
+          height={height}
+          fill="none"
+          stroke="url(#terrainGradient)"
+          strokeWidth={2}
+          opacity={0.3}
+        />
+
+        {/* Structures - marked with distinctive geometric shapes */}
+        {structures.map((structure) => {
+          const x = structure.position[0] * scale;
+          const y = structure.position[2] * scale;
+          const size = structure.type === "castle" ? 8 : structure.type === "workshop" ? 6 : 5;
+
+          return (
+            <g key={structure.id}>
+              {/* Structure base with glow */}
               <circle
-                cx={agent.position[0] * scale}
-                cy={agent.position[2] * scale}
-                r={7}
-                fill="none"
-                stroke="#f4d03f"
-                strokeWidth={2}
+                cx={x}
+                cy={y}
+                r={size + 2}
+                fill="#FFD700"
+                opacity={0.2}
               />
-            )}
-          </g>
-        ))}
+              {/* Structure icon - square for buildings */}
+              <rect
+                x={x - size / 2}
+                y={y - size / 2}
+                width={size}
+                height={size}
+                fill="#f39c12"
+                stroke="#FFD700"
+                strokeWidth={1.5}
+              />
+              {/* Type indicator */}
+              {structure.type === "castle" && (
+                <rect
+                  x={x - 2}
+                  y={y - size / 2 - 3}
+                  width={4}
+                  height={3}
+                  fill="#FFD700"
+                />
+              )}
+            </g>
+          );
+        })}
+
+        {/* Dragons - enemies marked with triangular threat icons */}
+        {dragons.map((dragon) => {
+          const x = dragon.position[0] * scale;
+          const y = dragon.position[2] * scale;
+          const size = 6;
+
+          return (
+            <g key={dragon.id}>
+              {/* Threat zone indicator */}
+              <circle
+                cx={x}
+                cy={y}
+                r={10}
+                fill="#DC143C"
+                opacity={0.1}
+              />
+              {/* Triangle warning icon */}
+              <path
+                d={`M ${x} ${y - size} L ${x + size} ${y + size} L ${x - size} ${y + size} Z`}
+                fill="#e74c3c"
+                stroke="#ff6b6b"
+                strokeWidth={1.5}
+              />
+              {/* Alert pulse */}
+              <circle
+                cx={x}
+                cy={y}
+                r={8}
+                fill="none"
+                stroke="#e74c3c"
+                strokeWidth={1}
+                opacity={0.4}
+              >
+                <animate
+                  attributeName="r"
+                  from="6"
+                  to="12"
+                  dur="2s"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  from="0.6"
+                  to="0"
+                  dur="2s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            </g>
+          );
+        })}
+
+        {/* Agents - friendly units with tactical icons */}
+        {agents.map((agent) => {
+          const x = agent.position[0] * scale;
+          const y = agent.position[2] * scale;
+          const isSelected = selectedAgentIds.has(agent.id);
+          const size = isSelected ? 4.5 : 3.5;
+
+          // Determine color based on state
+          const stateColors: Record<string, string> = {
+            IDLE: "#64B5F6",
+            WORKING: "#FFB74D",
+            THINKING: "#9C27B0",
+            MOVING: "#4FC3F7",
+            COMBAT: "#EF5350",
+            ERROR: "#F44336",
+          };
+          const color = stateColors[agent.state] || "#3498db";
+
+          return (
+            <g key={agent.id}>
+              {/* Selection/activity zone */}
+              {isSelected && (
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={10}
+                  fill="#FFD700"
+                  opacity={0.15}
+                />
+              )}
+              {/* Agent icon - diamond shape for units */}
+              <path
+                d={`M ${x} ${y - size} L ${x + size} ${y} L ${x} ${y + size} L ${x - size} ${y} Z`}
+                fill={isSelected ? "#FFD700" : color}
+                stroke={isSelected ? "#FFD700" : "#ffffff"}
+                strokeWidth={isSelected ? 1.5 : 0.8}
+              />
+              {/* Selection ring */}
+              {isSelected && (
+                <>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={9}
+                    fill="none"
+                    stroke="#FFD700"
+                    strokeWidth={1.5}
+                    strokeDasharray="2,2"
+                  />
+                  {/* Rotating selection indicator */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={9}
+                    fill="none"
+                    stroke="#FFD700"
+                    strokeWidth={1}
+                    opacity={0.5}
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="rotate"
+                      from={`0 ${x} ${y}`}
+                      to={`360 ${x} ${y}`}
+                      dur="4s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                </>
+              )}
+              {/* Working indicator */}
+              {agent.state === "WORKING" && !isSelected && (
+                <circle
+                  cx={x}
+                  cy={y - size - 2}
+                  r={1.5}
+                  fill="#FFB74D"
+                >
+                  <animate
+                    attributeName="opacity"
+                    values="0.3;1;0.3"
+                    dur="1.5s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              )}
+            </g>
+          );
+        })}
 
         {/* Camera view indicator - classic RTS feature */}
         <rect
@@ -144,14 +294,17 @@ export function Minimap({ width = 220, height = 220 }: MinimapProps) {
       </svg>
 
       {/* Minimap label - classic RTS style */}
-      <div className="absolute bottom-1 right-2 text-xs text-empire-gold font-bold tracking-wider">
+      <div className="absolute bottom-1 right-2 text-xs text-[var(--empire-gold)] font-bold tracking-wider rts-text-label">
         MINIMAP
       </div>
 
       {/* Compass indicator */}
-      <div className="absolute top-1 left-2 text-xs text-gray-500 font-bold">
+      <div className="absolute top-1 left-2 text-xs text-gray-400 font-bold rts-text-label">
         N
       </div>
+
+      {/* Holographic scanline effect */}
+      <div className="rts-scanline" />
     </motion.div>
   );
 }
@@ -188,7 +341,7 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className={`absolute bottom-4 left-4 bg-gray-900/95 border-2 border-empire-gold/50 rounded-lg p-4 text-white w-80 ${className}`}
+        className={`absolute bottom-4 left-4 pointer-events-auto bg-gray-900/95 border-2 border-[var(--empire-gold)]/50 rounded-lg p-4 text-white w-80 ${className}`}
       >
         <div className="text-center text-gray-400">
           <p className="text-lg font-semibold">No units selected</p>
@@ -203,16 +356,16 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={`absolute bottom-4 left-4 bg-gray-900/95 border-2 border-empire-gold rounded-lg p-4 text-white w-80 max-h-96 overflow-y-auto shadow-lg shadow-empire-gold/20 ${className}`}
+      className={`absolute bottom-4 left-4 pointer-events-auto bg-gray-900/95 border-2 border-[var(--empire-gold)] rounded-lg p-4 text-white w-80 max-h-96 overflow-y-auto shadow-lg shadow-[var(--empire-gold)]/20 ${className}`}
     >
       {/* Classic RTS selection header */}
-      <div className="flex justify-between items-center mb-3 pb-2 border-b border-empire-gold/30">
-        <h3 className="text-empire-gold text-lg font-bold">
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-[var(--empire-gold)]/30">
+        <h3 className="text-[var(--empire-gold)] text-lg font-bold rts-text-header">
           {selectedAgents.length} Unit{selectedAgents.length > 1 ? "s" : ""} Selected
         </h3>
         <button
           onClick={clearSelection}
-          className="text-gray-400 hover:text-white text-sm hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+          className="rts-button text-white text-sm px-3 py-1.5 rounded font-semibold"
         >
           Deselect
         </button>
@@ -220,10 +373,10 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
 
       <div className="space-y-3">
         {selectedAgents.map((agent) => (
-          <div key={agent.id} className="bg-gray-800/80 rounded p-3 border border-empire-gold/30">
+          <div key={agent.id} className="bg-gray-800/80 rounded p-3 border border-[var(--empire-gold)]/30">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <div className="font-semibold text-empire-gold text-base">{agent.name}</div>
+                <div className="font-semibold text-[var(--empire-gold)] text-base">{agent.name}</div>
                 <div className="text-xs text-gray-400">Level {agent.level} Agent</div>
               </div>
               <div className="text-xs px-2 py-1 rounded bg-gray-700 border border-gray-600">
@@ -234,17 +387,21 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
             {/* Health bar - classic RTS style */}
             <div className="mb-2">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-400">Health</span>
-                <span className={agent.health > 30 ? "text-green-400" : "text-red-400"}>
+                <span className="text-gray-400 rts-text-label">Health</span>
+                <span className={agent.health > 30 ? "text-green-400 font-semibold" : "text-red-400 font-semibold rts-pulse"}>
                   {agent.health}/{agent.maxHealth}
                 </span>
               </div>
-              <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
+              <div className="rts-stat-bar">
                 <div
-                  className="h-full transition-all duration-300"
+                  className="rts-stat-bar-fill"
                   style={{
                     width: `${(agent.health / agent.maxHealth) * 100}%`,
-                    backgroundColor: agent.health > 50 ? "#27ae60" : agent.health > 30 ? "#f39c12" : "#e74c3c",
+                    background: agent.health > 50
+                      ? "linear-gradient(90deg, #00FF88 0%, #00CC66 100%)"
+                      : agent.health > 30
+                      ? "linear-gradient(90deg, #FFA500 0%, #FF8C00 100%)"
+                      : "linear-gradient(90deg, #DC143C 0%, #8B0000 100%)",
                   }}
                 />
               </div>
@@ -261,7 +418,7 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
             <div className="flex items-center justify-between">
               <div className="text-sm">
                 {agent.equippedTool ? (
-                  <span className="text-empire-gold">
+                  <span className="text-[var(--empire-gold)]">
                     {agent.equippedTool.icon} {agent.equippedTool.name}
                   </span>
                 ) : (
@@ -271,7 +428,7 @@ export function AgentPanel({ className = "" }: AgentPanelProps) {
               {agent.equippedTool && (
                 <button
                   onClick={() => updateAgent(agent.id, { equippedTool: null })}
-                  className="text-xs text-gray-400 hover:text-white hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+                  className="rts-button text-xs text-white px-3 py-1 rounded font-semibold"
                 >
                   Unequip
                 </button>
@@ -322,12 +479,12 @@ export function InventoryPanel({ agentId, onClose, viewMode = "list" }: Inventor
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 50 }}
-      className="absolute top-1/2 right-4 transform -translate-y-1/2 bg-gray-900/98 border-2 border-empire-gold rounded-lg p-4 text-white w-80 shadow-2xl shadow-empire-gold/30 max-h-[80vh] overflow-hidden flex flex-col"
+      className="absolute top-1/2 right-4 transform -translate-y-1/2 bg-gray-900/98 border-2 border-[var(--empire-gold)] rounded-lg p-4 text-white w-80 shadow-2xl shadow-[var(--empire-gold)]/30 max-h-[80vh] overflow-hidden flex flex-col"
     >
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 pb-3 border-b border-empire-gold/30">
+      <div className="flex justify-between items-center mb-4 pb-3 border-b border-[var(--empire-gold)]/30">
         <div>
-          <h3 className="text-empire-gold text-lg font-bold">Inventory</h3>
+          <h3 className="text-[var(--empire-gold)] text-lg font-bold">Inventory</h3>
           <p className="text-xs text-gray-400">{agent.name}'s Equipment</p>
         </div>
         <div className="flex items-center gap-2">
@@ -343,13 +500,13 @@ export function InventoryPanel({ agentId, onClose, viewMode = "list" }: Inventor
       </div>
 
       {/* Currently Equipped Tool */}
-      <div className="mb-4 p-3 rounded-lg bg-gray-800/80 border border-empire-gold/30">
+      <div className="mb-4 p-3 rounded-lg bg-gray-800/80 border border-[var(--empire-gold)]/30">
         <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Equipped</p>
         {agent.equippedTool ? (
           <div className="flex items-center gap-3">
             <ToolIcon toolType={agent.equippedTool.type} rarity={agent.equippedTool.rarity} size="md" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-empire-gold truncate">{agent.equippedTool.name}</p>
+              <p className="font-semibold text-sm text-[var(--empire-gold)] truncate">{agent.equippedTool.name}</p>
               <RarityBadge rarity={agent.equippedTool.rarity} />
             </div>
             <button
@@ -520,12 +677,12 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
       initial={{ opacity: 0, x: -50, y: -20 }}
       animate={{ opacity: 1, x: 0, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className={`absolute top-4 left-4 z-40 bg-gray-900 border-2 border-empire-gold rounded-lg p-4 text-white w-80 shadow-lg shadow-empire-gold/20 pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto ${className}`}
+      className={`absolute top-4 left-4 z-40 bg-gray-900 border-2 border-[var(--empire-gold)] rounded-lg p-4 text-white w-80 shadow-lg shadow-[var(--empire-gold)]/20 pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto rts-scrollbar ${className}`}
     >
       {/* Classic RTS objectives header */}
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-empire-gold/30">
-        <span className="text-empire-gold text-xl">📜</span>
-        <h3 className="text-empire-gold text-lg font-bold">Objectives</h3>
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b-2 border-[var(--empire-gold)]/50">
+        <span className="text-[var(--empire-gold)] text-xl">📜</span>
+        <h3 className="text-[var(--empire-gold)] text-lg font-bold rts-text-header">Objectives</h3>
       </div>
 
       {quests.length === 0 ? (
@@ -577,7 +734,7 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
                 {needsMore && !isPickerOpen && (
                   <button
                     onClick={() => openPicker(quest.id)}
-                    className="text-xs bg-empire-gold text-gray-900 px-3 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors"
+                    className="rts-button-primary text-xs text-gray-900 px-4 py-1.5 rounded font-bold"
                   >
                     Assign Agents
                   </button>
@@ -585,8 +742,8 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
 
                 {/* Inline agent picker */}
                 {isPickerOpen && (
-                  <div className="mt-2 border border-gray-600 rounded bg-gray-800/80">
-                    <div className="max-h-32 overflow-y-auto">
+                  <div className="mt-2 rts-dropdown rounded relative z-50">
+                    <div className="max-h-32 overflow-y-auto rts-scrollbar">
                       {getAvailableAgents(quest.id).length === 0 ? (
                         <div className="text-xs text-gray-500 text-center py-3">
                           No available agents
@@ -596,16 +753,16 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
                           <div
                             key={agent.id}
                             onClick={() => togglePickerAgent(agent.id)}
-                            className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer text-xs border-b border-gray-700/50 last:border-b-0 transition-colors ${
+                            className={`rts-dropdown-item flex items-center gap-2 px-3 py-2 cursor-pointer text-xs border-b border-gray-700/30 last:border-b-0 ${
                               pickerSelected.has(agent.id)
-                                ? "bg-empire-gold/15 text-white"
-                                : "text-gray-400 hover:bg-white/5"
+                                ? "bg-empire-gold/20 text-white border-l-empire-gold"
+                                : "text-gray-300 hover:text-white"
                             }`}
                           >
                             <div
                               className={`w-3 h-3 rounded border flex items-center justify-center ${
                                 pickerSelected.has(agent.id)
-                                  ? "border-empire-gold bg-empire-gold/30 text-empire-gold text-[10px]"
+                                  ? "border-[var(--empire-gold)] bg-empire-gold/30 text-[var(--empire-gold)] text-[10px]"
                                   : "border-gray-600"
                               }`}
                             >
@@ -617,17 +774,17 @@ export function QuestTracker({ className = "" }: QuestTrackerProps) {
                         ))
                       )}
                     </div>
-                    <div className="flex gap-1 p-2 border-t border-gray-700">
+                    <div className="flex gap-2 p-2 border-t-2 border-gray-700/50">
                       <button
                         onClick={confirmAssign}
                         disabled={pickerSelected.size === 0}
-                        className="flex-1 text-xs bg-empire-gold text-gray-900 px-2 py-1 rounded font-semibold hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 rts-button-success text-xs text-gray-900 px-3 py-1.5 rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Assign ({pickerSelected.size})
                       </button>
                       <button
                         onClick={closePicker}
-                        className="flex-1 text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded hover:bg-gray-600 transition-colors"
+                        className="flex-1 rts-button text-xs text-white px-3 py-1.5 rounded font-semibold"
                       >
                         Cancel
                       </button>
@@ -665,6 +822,7 @@ export function ContextMenu({ agentId, position, onClose }: ContextMenuProps) {
   const contextMenuOpen = useGameStore((state) => state.contextMenuOpen);
   const dragonsMap = useGameStore(useShallow((state) => state.dragons));
   const [showInventory, setShowInventory] = useState(false);
+  const [showIntel, setShowIntel] = useState(false);
   const [showCombat, setShowCombat] = useState(false);
   const { attackDragon, autoResolveCombat } = useCombat();
 
@@ -695,30 +853,48 @@ export function ContextMenu({ agentId, position, onClose }: ContextMenuProps) {
         {showInventory && (
           <InventoryPanel agentId={agentId} onClose={() => setShowInventory(false)} />
         )}
+        {showIntel && (
+          <IntelligenceBureau agentId={agentId} onClose={() => setShowIntel(false)} />
+        )}
       </AnimatePresence>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className="fixed bg-gray-900/95 border-2 border-empire-gold rounded-lg py-2 text-white w-56 z-50 shadow-xl shadow-empire-gold/20"
+        className="fixed bg-gray-900/95 border-2 border-[var(--empire-gold)] rounded-lg py-2 text-white w-56 z-50 shadow-xl shadow-[var(--empire-gold)]/20"
         style={{
           left: Math.min(position.x, window.innerWidth - 230),
           top: Math.min(position.y, window.innerHeight - 300),
         }}
       >
-        <div className="px-4 py-2 border-b border-empire-gold/30 bg-empire-gold/10">
-          <div className="font-bold text-empire-gold">{agent.name}</div>
+        <div className="px-4 py-2 border-b border-[var(--empire-gold)]/30 bg-empire-gold/10">
+          <div className="font-bold text-[var(--empire-gold)]">{agent.name}</div>
           <div className="text-xs text-gray-400">Level {agent.level} • {agent.state}</div>
         </div>
 
         <div className="py-1">
           <button
-            onClick={() => setShowInventory(true)}
+            onClick={() => {
+              closeContextMenu();
+              setShowInventory(true);
+            }}
             className="w-full text-left px-4 py-2 hover:bg-gray-800 flex items-center gap-2 transition-colors"
           >
             <span>🎒</span> Open Inventory
           </button>
+
+          <button
+            onClick={() => {
+              closeContextMenu();
+              setShowIntel(true);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-gray-800 flex items-center gap-2 transition-colors"
+          >
+            <span>🕵️</span> Intelligence Bureau
+          </button>
+
+          <div className="border-t border-gray-700 my-1" />
 
           <button
             onClick={() => {
@@ -753,7 +929,7 @@ export function ContextMenu({ agentId, position, onClose }: ContextMenuProps) {
                   <div className="flex gap-2 mt-1">
                     <button
                       onClick={() => handleAttack(dragon.id)}
-                      className="flex-1 text-xs bg-red-700 hover:bg-red-600 py-1 rounded transition-colors"
+                      className="flex-1 text-xs bg-red-700 hover:bg-[var(--empire-red)] py-1 rounded transition-colors"
                     >
                       Attack
                     </button>
@@ -803,23 +979,23 @@ export function TopBar({ className = "" }: TopBarProps) {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-gray-900/90 to-transparent pt-2 pb-8 px-4 ${className}`}
+      className={`absolute top-0 left-0 right-0 pointer-events-auto bg-gradient-to-b from-gray-900/90 to-transparent pt-2 pb-8 px-4 ${className}`}
     >
       <div className="flex justify-center gap-8">
         {/* Classic RTS resource display style */}
-        <div className="text-white text-center bg-gray-900/60 px-4 py-1 rounded-lg border border-empire-gold/30">
-          <div className="text-2xl font-bold text-empire-gold">{agentCount}</div>
-          <div className="text-xs text-gray-400">Units</div>
+        <div className="text-white text-center px-6 py-2 rounded-lg border-2 border-[var(--empire-gold)]/50 rts-glow-gold">
+          <div className="text-3xl font-bold text-[var(--empire-gold)] rts-text-header" style={{textShadow: '0 0 20px rgba(255, 215, 0, 0.8)'}}>{agentCount}</div>
+          <div className="text-xs text-gray-300 rts-text-label">Units</div>
         </div>
-        <div className="text-white text-center bg-gray-900/60 px-4 py-1 rounded-lg border border-empire-green/30">
-          <div className="text-2xl font-bold text-empire-green">
+        <div className="text-white text-center px-6 py-2 rounded-lg border-2 border-[var(--empire-green)]/50 rts-glow-green">
+          <div className="text-3xl font-bold text-[var(--empire-green)] rts-text-header" style={{textShadow: '0 0 20px rgba(0, 255, 136, 0.8)'}}>
             {completedQuests}/{questCount}
           </div>
-          <div className="text-xs text-gray-400">Objectives</div>
+          <div className="text-xs text-gray-300 rts-text-label">Objectives</div>
         </div>
-        <div className="text-white text-center bg-gray-900/60 px-4 py-1 rounded-lg border border-empire-red/30">
-          <div className="text-2xl font-bold text-empire-red">{dragonCount}</div>
-          <div className="text-xs text-gray-400">Threats</div>
+        <div className="text-white text-center px-6 py-2 rounded-lg border-2 border-[var(--empire-red)]/50 rts-glow-red">
+          <div className="text-3xl font-bold text-[var(--empire-red)] rts-text-header" style={{textShadow: '0 0 20px rgba(220, 20, 60, 0.8)'}}>{dragonCount}</div>
+          <div className="text-xs text-gray-300 rts-text-label">Threats</div>
         </div>
       </div>
     </motion.div>
@@ -1005,6 +1181,16 @@ export function HUD({ className = "" }: HUDProps) {
       {/* Minimap - Classic RTS minimap (top-right) */}
       <Minimap />
 
+      {/* Fleet Command - Agent status overview (top-right, below minimap) */}
+      <div className="pointer-events-auto">
+        <FleetCommand />
+      </div>
+
+      {/* Connection Legend - Shows what connection lines mean (top-right, next to minimap) */}
+      <div className="pointer-events-auto">
+        <ConnectionLegend position="top-right" />
+      </div>
+
       {/* Agent panel - Classic RTS unit info (bottom-left) */}
       <AgentPanel />
 
@@ -1038,9 +1224,22 @@ export function HUD({ className = "" }: HUDProps) {
         )}
       </AnimatePresence>
 
-      {/* Theme toggle */}
-      <div className="pointer-events-auto fixed top-4 right-56 z-40">
+      {/* Theme toggle - Bottom left corner */}
+      <div className="pointer-events-auto fixed bottom-4 left-96 z-40">
         <ThemeToggle />
+      </div>
+
+      {/* Chat Commander - Bottom center */}
+      <div className="pointer-events-auto">
+        <ChatCommander />
+      </div>
+
+      {/* Agent Progress HUD - Top right, below minimap */}
+      <AgentProgressHUD />
+
+      {/* Logs Viewer - Bottom right */}
+      <div className="pointer-events-auto">
+        <LogsViewer />
       </div>
     </div>
   );

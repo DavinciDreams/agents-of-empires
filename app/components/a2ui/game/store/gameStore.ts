@@ -60,6 +60,27 @@ export interface GameAgent {
   partyId: string | null; // Party membership
   currentPath: [number, number][] | null; // Pathfinding path
   pathIndex: number; // Current index in path
+
+  // Checkpoint-based execution
+  currentQuestId?: string;
+  currentCheckpointId?: string;
+  currentStepDescription?: string;
+
+  // Token tracking
+  tokenUsage?: {
+    total: number;
+    thisStep: number;
+    cost: number; // USD estimate
+  };
+
+  // Progress tracking
+  executionProgress?: {
+    currentStep: number;
+    totalSteps: number;
+    percentComplete: number;
+    startedAt: number;
+    estimatedCompletion?: number;
+  };
 }
 
 export type DragonType = "SYNTAX" | "RUNTIME" | "NETWORK" | "PERMISSION" | "UNKNOWN";
@@ -75,6 +96,16 @@ export interface Dragon {
 }
 
 export type StructureType = "castle" | "tower" | "workshop" | "campfire" | "base";
+
+export type LogLevel = "info" | "warn" | "error" | "debug" | "success";
+
+export interface LogEntry {
+  id: string;
+  level: LogLevel;
+  message: string;
+  timestamp: number;
+  source?: string; // e.g., "client", "server", "api"
+}
 
 export interface Structure {
   id: string;
@@ -99,6 +130,11 @@ export interface Quest {
   questlineId?: string; // Reference to parent questline
   prerequisiteQuestIds?: string[]; // Quests that must be completed first
   position?: number; // Position within questline sequence
+
+  // Checkpoint-based quests
+  checkpointIds?: string[]; // List of checkpoint IDs for this quest
+  estimatedTokens?: number; // Total estimated tokens for quest
+  actualTokens?: number; // Total actual tokens used
 }
 
 export type QuestlineStatus = "not_started" | "in_progress" | "completed" | "failed";
@@ -120,6 +156,7 @@ export interface Tile {
   z: number;
   type: TileType;
   walkable: boolean;
+  height?: number; // Visual height (0-4 units) - doesn't affect pathfinding
 }
 
 export type FormationType = "line" | "wedge" | "column" | "box" | "circle" | "free";
@@ -136,6 +173,21 @@ export interface Party {
     tools: Tool[]; // Tools accessible to all party members
     lastUpdated: number; // Timestamp of last resource change
   };
+}
+
+export type CheckpointStatus = "pending" | "active" | "completed" | "failed";
+
+export interface Checkpoint {
+  id: string;
+  questId: string;
+  stepNumber: number;
+  description: string; // What the agent should do
+  position: [number, number, number]; // Map position
+  status: CheckpointStatus;
+  estimatedTokens?: number;
+  actualTokens?: number;
+  completedAt?: number;
+  result?: string; // Output from this step
 }
 
 // ============================================================================
@@ -172,6 +224,9 @@ interface GameState {
   // Questlines
   questlines: Record<string, Questline>;
   activeQuestlineId: string | null;
+
+  // Checkpoints
+  checkpoints: Record<string, Checkpoint>;
 
   // Camera
   cameraPosition: { x: number; y: number; z: number };
@@ -222,6 +277,18 @@ interface GameState {
     initialized: boolean;
   };
   agentMiddleware: AgentMiddlewareConfig | null;
+
+  // Tutorial System
+  tutorialState: {
+    enabled: boolean;
+    currentStep: number;
+    completedSteps: Set<string>;
+  };
+
+  // Logs
+  logs: LogEntry[];
+  maxLogs: number; // Maximum number of logs to keep
+  logsVisible: boolean; // Toggle logs panel visibility
 }
 
 // ============================================================================
@@ -325,6 +392,14 @@ interface GameActions {
   advanceQuestline: (questlineId: string) => void;
   setActiveQuestline: (questlineId: string | null) => void;
 
+  // Checkpoints
+  addCheckpoint: (checkpoint: Checkpoint) => void;
+  updateCheckpoint: (id: string, updates: Partial<Checkpoint>) => void;
+  completeCheckpoint: (id: string, result: string, tokens: number) => void;
+  setAgentCheckpoint: (agentId: string, checkpointId: string) => void;
+  updateAgentProgress: (agentId: string, progress: Partial<GameAgent['executionProgress']>) => void;
+  updateTokenUsage: (agentId: string, tokens: number) => void;
+
   // Camera
   setCameraPosition: (position: { x: number; y: number; z: number }) => void;
   setCameraTarget: (target: { x: number; y: number; z: number }) => void;
@@ -368,6 +443,18 @@ interface GameActions {
   // Agent Middleware Actions
   setBackendConfig: (config: { type: BackendType; initialized: boolean }) => void;
   setAgentMiddleware: (middleware: AgentMiddlewareConfig | null) => void;
+
+  // Tutorial Actions
+  setTutorialEnabled: (enabled: boolean) => void;
+  setTutorialStep: (step: number) => void;
+  completeTutorialStep: (stepId: string) => void;
+  resetTutorial: () => void;
+
+  // Log Actions
+  addLog: (level: LogLevel, message: string, source?: string) => void;
+  clearLogs: () => void;
+  toggleLogsVisible: () => void;
+  setLogsVisible: (visible: boolean) => void;
 }
 
 // ============================================================================
@@ -395,6 +482,7 @@ export const useGameStore = create<GameStore>()(
     completedQuestCount: 0,
     questlines: {},
     activeQuestlineId: null,
+    checkpoints: {},
     cameraPosition: { x: 25, y: 30, z: 25 },
     cameraTarget: { x: 0, y: 0, z: 0 },
     zoom: 1,
@@ -420,6 +508,14 @@ export const useGameStore = create<GameStore>()(
       initialized: false,
     },
     agentMiddleware: null,
+    tutorialState: {
+      enabled: true,
+      currentStep: 0,
+      completedSteps: new Set(),
+    },
+    logs: [],
+    maxLogs: 100,
+    logsVisible: false,
 
   // World Actions
   initializeWorld: (width, height) => {
@@ -449,6 +545,21 @@ export const useGameStore = create<GameStore>()(
   // Agent Actions
   spawnAgent: (name, position, agentRef, parentId) => {
     const id = uuidv4();
+
+    // Create default Tavily web search tool for this agent
+    const tavilyTool: Tool = {
+      id: `tavily-${id}`,
+      name: "Tavily Web Search",
+      type: "search",
+      icon: "🌐",
+      description: "Search the web for information using Tavily AI",
+      rarity: "rare",
+      power: 15,
+      cooldownTime: 3000,
+      mastery: 0,
+      experience: 0,
+    };
+
     const agent: GameAgent = {
       id,
       name,
@@ -459,7 +570,7 @@ export const useGameStore = create<GameStore>()(
       health: 100,
       maxHealth: 100,
       equippedTool: null,
-      inventory: [],
+      inventory: [tavilyTool], // Start with Tavily search tool
       currentTask: "Awaiting orders...",
       agentRef,
       parentId: parentId || null,
@@ -1109,7 +1220,8 @@ export const useGameStore = create<GameStore>()(
       const quest = state.quests[id];
       if (quest) {
         const oldCompleted = quest.status === "completed";
-        Object.assign(state.quests[id], updates);
+        // Create new object to trigger re-renders with shallow comparison
+        state.quests[id] = { ...quest, ...updates };
         const newCompleted = (updates.status ?? quest.status) === "completed";
         const completedDelta = newCompleted ? 1 : 0 - (oldCompleted ? 1 : 0);
         state.completedQuestCount = Math.max(0, state.completedQuestCount + completedDelta);
@@ -1124,10 +1236,69 @@ export const useGameStore = create<GameStore>()(
       status: "in_progress",
     });
 
-    // Get the quest to find the target structure
+    // Get the quest
     const quest = get().quests[questId];
-    if (!quest || !quest.targetStructureId) {
-      console.warn(`[assignQuestToAgents] Quest ${questId} has no target structure`);
+    if (!quest) {
+      console.warn(`[assignQuestToAgents] Quest ${questId} not found`);
+      return;
+    }
+
+    // Check if this is a checkpoint-based quest
+    if (quest.checkpointIds && quest.checkpointIds.length > 0) {
+      // Checkpoint-based quest: assign first checkpoint to agents
+      const firstCheckpointId = quest.checkpointIds[0];
+      const firstCheckpoint = get().checkpoints[firstCheckpointId];
+
+      if (!firstCheckpoint) {
+        console.warn(`[assignQuestToAgents] Checkpoint ${firstCheckpointId} not found`);
+        return;
+      }
+
+      // Prepare batch updates for all assigned agents
+      const agentUpdates: Array<{ id: string; changes: Partial<GameAgent> }> = [];
+
+      agentIds.forEach((agentId) => {
+        const agent = get().agents[agentId];
+        if (!agent) return;
+
+        agentUpdates.push({
+          id: agentId,
+          changes: {
+            currentQuestId: questId,
+            currentCheckpointId: firstCheckpointId,
+            currentStepDescription: firstCheckpoint.description,
+            targetPosition: firstCheckpoint.position,
+            state: "MOVING",
+            currentTask: `Quest: ${quest.title}`,
+            executionProgress: {
+              currentStep: 1,
+              totalSteps: quest.checkpointIds?.length || 0,
+              percentComplete: (1 / (quest.checkpointIds?.length || 1)) * 100,
+              startedAt: Date.now(),
+            },
+            tokenUsage: {
+              total: 0,
+              thisStep: 0,
+              cost: 0,
+            },
+          },
+        });
+      });
+
+      // Mark first checkpoint as active
+      get().updateCheckpoint(firstCheckpointId, { status: "active" });
+
+      // Apply all agent updates in a single batch
+      if (agentUpdates.length > 0) {
+        get().updateMultipleAgents(agentUpdates);
+      }
+
+      return;
+    }
+
+    // Legacy structure-based quest
+    if (!quest.targetStructureId) {
+      console.warn(`[assignQuestToAgents] Quest ${questId} has no target structure or checkpoints`);
       return;
     }
 
@@ -1424,6 +1595,152 @@ export const useGameStore = create<GameStore>()(
       state.agentMiddleware = middleware;
     });
   },
+
+  // Tutorial Actions
+  setTutorialEnabled: (enabled) => {
+    set((state) => {
+      state.tutorialState.enabled = enabled;
+    });
+  },
+
+  setTutorialStep: (step) => {
+    set((state) => {
+      state.tutorialState.currentStep = step;
+    });
+  },
+
+  completeTutorialStep: (stepId) => {
+    set((state) => {
+      state.tutorialState.completedSteps.add(stepId);
+    });
+  },
+
+  resetTutorial: () => {
+    set((state) => {
+      state.tutorialState = {
+        enabled: true,
+        currentStep: 0,
+        completedSteps: new Set(),
+      };
+    });
+  },
+
+  // Log Actions
+  addLog: (level: LogLevel, message: string, source?: string) => {
+    set((state) => {
+      const newLog: LogEntry = {
+        id: uuidv4(),
+        level,
+        message,
+        timestamp: Date.now(),
+        source,
+      };
+      state.logs.push(newLog);
+
+      // Keep only the last maxLogs entries
+      if (state.logs.length > state.maxLogs) {
+        state.logs = state.logs.slice(-state.maxLogs);
+      }
+    });
+  },
+
+  clearLogs: () => {
+    set((state) => {
+      state.logs = [];
+    });
+  },
+
+  toggleLogsVisible: () => {
+    set((state) => {
+      state.logsVisible = !state.logsVisible;
+    });
+  },
+
+  setLogsVisible: (visible: boolean) => {
+    set((state) => {
+      state.logsVisible = visible;
+    });
+  },
+
+  // Checkpoint Actions
+  addCheckpoint: (checkpoint) => {
+    set((state) => {
+      state.checkpoints[checkpoint.id] = checkpoint;
+    });
+  },
+
+  updateCheckpoint: (id, updates) => {
+    set((state) => {
+      const checkpoint = state.checkpoints[id];
+      if (checkpoint) {
+        Object.assign(state.checkpoints[id], updates);
+      }
+    });
+  },
+
+  completeCheckpoint: (id, result, tokens) => {
+    set((state) => {
+      const checkpoint = state.checkpoints[id];
+      if (checkpoint) {
+        checkpoint.status = "completed";
+        checkpoint.result = result;
+        checkpoint.actualTokens = tokens;
+        checkpoint.completedAt = Date.now();
+      }
+    });
+  },
+
+  setAgentCheckpoint: (agentId, checkpointId) => {
+    set((state) => {
+      const agent = state.agents[agentId];
+      const checkpoint = state.checkpoints[checkpointId];
+      if (agent && checkpoint) {
+        agent.currentCheckpointId = checkpointId;
+        agent.currentQuestId = checkpoint.questId;
+        agent.currentStepDescription = checkpoint.description;
+
+        // Update checkpoint status
+        checkpoint.status = "active";
+      }
+    });
+  },
+
+  updateAgentProgress: (agentId, progress) => {
+    set((state) => {
+      const agent = state.agents[agentId];
+      if (agent) {
+        if (!agent.executionProgress) {
+          agent.executionProgress = {
+            currentStep: 1,
+            totalSteps: 1,
+            percentComplete: 0,
+            startedAt: Date.now(),
+          };
+        }
+        Object.assign(agent.executionProgress, progress);
+      }
+    });
+  },
+
+  updateTokenUsage: (agentId, tokens) => {
+    set((state) => {
+      const agent = state.agents[agentId];
+      if (agent) {
+        if (!agent.tokenUsage) {
+          agent.tokenUsage = {
+            total: 0,
+            thisStep: 0,
+            cost: 0,
+          };
+        }
+        agent.tokenUsage.thisStep = tokens;
+        agent.tokenUsage.total += tokens;
+        // Rough cost estimate: $3 per million input tokens, $15 per million output tokens
+        // Using average of $9 per million tokens
+        agent.tokenUsage.cost = (agent.tokenUsage.total / 1_000_000) * 9;
+      }
+    });
+  },
 })));
 
 // ============================================================================
@@ -1474,3 +1791,9 @@ export const useCameraElevation = () => useGameStore((state) => state.cameraElev
 export const useCameraElevationTarget = () => useGameStore((state) => state.cameraElevationTarget);
 export const useSetCameraRotation = () => useGameStore((state) => state.setCameraRotation);
 export const useSetCameraElevation = () => useGameStore((state) => state.setCameraElevation);
+
+// Tutorial state selectors
+export const useTutorialState = () => useGameStore((state) => state.tutorialState);
+export const useTutorialEnabled = () => useGameStore((state) => state.tutorialState.enabled);
+export const useTutorialStep = () => useGameStore((state) => state.tutorialState.currentStep);
+export const useTutorialCompletedSteps = () => useGameStore((state) => state.tutorialState.completedSteps);

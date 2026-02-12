@@ -26,6 +26,8 @@ export type {
   Tile,
   FormationType,
   Party,
+  LogLevel,
+  LogEntry,
 } from "./gameStore";
 
 // ============================================================================
