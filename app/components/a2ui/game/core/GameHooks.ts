@@ -397,6 +397,14 @@ export function useGame(config: GameConfig = DEFAULT_CONFIG) {
     // Update agent positions
     for (const id in agents) {
       const agent = agents[id];
+
+      // Check if agent should auto-execute next checkpoint
+      if ((agent as any).autoExecuteCheckpoint && agent.currentCheckpointId) {
+        // Remove flag and execute immediately
+        useGameStore.getState().updateAgent(agent.id, { autoExecuteCheckpoint: false } as any);
+        executeCheckpointTask(agent.id, agent.currentCheckpointId);
+      }
+
       if (agent.targetPosition) {
         moveAgentTowardsTarget(agent, now, delta);
       }

@@ -65,6 +65,7 @@ export interface GameAgent {
   currentQuestId?: string;
   currentCheckpointId?: string;
   currentStepDescription?: string;
+  autoExecuteCheckpoint?: boolean; // Flag to auto-execute next checkpoint
 
   // Token tracking
   tokenUsage?: {
@@ -1710,13 +1711,14 @@ export const useGameStore = create<GameStore>()(
         const nextCheckpoint = state.checkpoints[nextCheckpointId];
 
         if (nextCheckpoint) {
-          // Update all agents to move to next checkpoint
+          // Update all agents to execute next checkpoint immediately
           agentsOnCheckpoint.forEach((agent) => {
             agent.currentCheckpointId = nextCheckpointId;
             agent.currentStepDescription = nextCheckpoint.description;
-            agent.targetPosition = nextCheckpoint.position;
-            agent.state = "MOVING";
-            agent.currentTask = `Moving to checkpoint ${nextIndex + 1}/${quest.checkpointIds.length}`;
+            agent.targetPosition = null; // No movement needed
+            agent.state = "WORKING"; // Start working immediately
+            agent.currentTask = `Executing checkpoint ${nextIndex + 1}/${quest.checkpointIds.length}`;
+            agent.autoExecuteCheckpoint = true; // Flag for GameHooks to execute immediately
 
             // Update progress
             if (agent.executionProgress) {
