@@ -1681,11 +1681,88 @@ export const useGameStore = create<GameStore>()(
   completeCheckpoint: (id, result, tokens) => {
     set((state) => {
       const checkpoint = state.checkpoints[id];
-      if (checkpoint) {
-        checkpoint.status = "completed";
-        checkpoint.result = result;
-        checkpoint.actualTokens = tokens;
-        checkpoint.completedAt = Date.now();
+      if (!checkpoint) return;
+
+      // Mark current checkpoint as completed
+      checkpoint.status = "completed";
+      checkpoint.result = result;
+      checkpoint.actualTokens = tokens;
+      checkpoint.completedAt = Date.now();
+
+      // Find the quest this checkpoint belongs to
+      const quest = state.quests[checkpoint.questId];
+      if (!quest || !quest.checkpointIds) return;
+
+      // Find current checkpoint index
+      const currentIndex = quest.checkpointIds.indexOf(id);
+      if (currentIndex === -1) return;
+
+      // Find all agents working on this checkpoint
+      const agentsOnCheckpoint = Object.values(state.agents).filter(
+        (agent) => agent.currentCheckpointId === id
+      );
+
+      // Check if there's a next checkpoint
+      const nextIndex = currentIndex + 1;
+      if (nextIndex < quest.checkpointIds.length) {
+        // Move to next checkpoint
+        const nextCheckpointId = quest.checkpointIds[nextIndex];
+        const nextCheckpoint = state.checkpoints[nextCheckpointId];
+
+        if (nextCheckpoint) {
+          // Update all agents to move to next checkpoint
+          agentsOnCheckpoint.forEach((agent) => {
+            agent.currentCheckpointId = nextCheckpointId;
+            agent.currentStepDescription = nextCheckpoint.description;
+            agent.targetPosition = nextCheckpoint.position;
+            agent.state = "MOVING";
+            agent.currentTask = `Moving to checkpoint ${nextIndex + 1}/${quest.checkpointIds.length}`;
+
+            // Update progress
+            if (agent.executionProgress) {
+              agent.executionProgress.currentStep = nextIndex + 1;
+              agent.executionProgress.percentComplete =
+                ((nextIndex + 1) / quest.checkpointIds.length) * 100;
+            }
+
+            // Accumulate tokens
+            if (agent.tokenUsage) {
+              agent.tokenUsage.total += tokens;
+              agent.tokenUsage.thisStep = 0; // Reset for next step
+            }
+          });
+
+          // Set next checkpoint as active
+          nextCheckpoint.status = "active";
+        }
+      } else {
+        // Quest completed! No more checkpoints
+        quest.status = "completed";
+        quest.completedAt = Date.now();
+
+        // Set all agents to IDLE
+        agentsOnCheckpoint.forEach((agent) => {
+          agent.state = "IDLE";
+          agent.currentTask = "Quest completed!";
+          agent.currentCheckpointId = null;
+          agent.currentQuestId = null;
+          agent.currentStepDescription = null;
+          agent.targetPosition = null;
+
+          // Finalize progress
+          if (agent.executionProgress) {
+            agent.executionProgress.percentComplete = 100;
+          }
+        });
+
+        // Log quest completion
+        state.logs.push({
+          id: `log-${Date.now()}`,
+          timestamp: Date.now(),
+          level: "success",
+          message: `🎉 Quest "${quest.title}" completed!`,
+          source: "system",
+        });
       }
     });
   },
