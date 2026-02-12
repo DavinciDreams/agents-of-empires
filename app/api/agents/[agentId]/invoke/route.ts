@@ -88,7 +88,7 @@ export async function POST(
 
     // Track execution
     const tracker = ExecutionTracker.getInstance();
-    const execution = tracker.startExecution(
+    const execution = await tracker.startExecution(
       agentId,
       threadId,
       a2aRequest
@@ -105,7 +105,7 @@ export async function POST(
       const response = await wrapper.invoke(a2aRequest);
 
       // Mark execution as complete
-      tracker.completeExecution(execution.id, response.metadata.checkpointId);
+      await tracker.completeExecution((await execution).id, response.metadata.checkpointId);
 
       // Sanitize response
       const sanitized = sanitizeResponse(response);

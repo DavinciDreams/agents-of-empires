@@ -2,9 +2,11 @@
  * Execution Tracker
  *
  * Tracks running agent executions for status checking and cancellation.
+ * Integrates with database persistence for durable state management.
  */
 
 import type { A2ARequest } from "../types/a2a";
+import { resultsPersistence } from "@/app/lib/results-persistence";
 
 /**
  * Execution status
@@ -87,12 +89,12 @@ export class ExecutionTracker {
   /**
    * Start a new execution
    */
-  startExecution(
+  async startExecution(
     agentId: string,
     threadId: string,
     request: A2ARequest,
     checkpointId?: string
-  ): ExecutionInfo {
+  ): Promise<ExecutionInfo> {
     const id = this.generateExecutionId();
 
     const execution: ExecutionInfo = {
@@ -116,32 +118,58 @@ export class ExecutionTracker {
       this.executionsByCheckpoint.set(checkpointId, id);
     }
 
+    // Persist to database
+    try {
+      await resultsPersistence.saveLog({
+        agentId,
+        executionId: id,
+        level: 'info',
+        message: `Execution started for thread ${threadId}${checkpointId ? ` (checkpoint: ${checkpointId})` : ''}`,
+        source: 'execution-tracker',
+      });
+    } catch (error) {
+      console.error('[ExecutionTracker] Failed to persist start:', error);
+    }
+
     return execution;
   }
 
   /**
    * Update execution progress
    */
-  updateProgress(
+  async updateProgress(
     executionId: string,
     progress: Partial<ExecutionInfo["progress"]>
-  ): void {
+  ): Promise<void> {
     const execution = this.executions.get(executionId);
     if (execution && execution.progress) {
       execution.progress = {
         ...execution.progress,
         ...progress,
       };
+
+      // Persist progress update to database
+      try {
+        await resultsPersistence.saveLog({
+          agentId: execution.agentId,
+          executionId,
+          level: 'info',
+          message: `Progress update: ${progress.currentStep || ''} (${progress.stepsCompleted || 0}/${progress.totalSteps || '?'} steps)`,
+          source: 'execution-tracker',
+        });
+      } catch (error) {
+        console.error('[ExecutionTracker] Failed to persist progress:', error);
+      }
     }
   }
 
   /**
    * Complete an execution
    */
-  completeExecution(
+  async completeExecution(
     executionId: string,
     checkpointId?: string
-  ): void {
+  ): Promise<void> {
     const execution = this.executions.get(executionId);
     if (execution) {
       execution.status = "completed";
@@ -151,18 +179,44 @@ export class ExecutionTracker {
         execution.checkpointId = checkpointId;
         this.executionsByCheckpoint.set(checkpointId, executionId);
       }
+
+      // Persist completion to database
+      try {
+        await resultsPersistence.saveLog({
+          agentId: execution.agentId,
+          executionId,
+          level: 'info',
+          message: `Execution completed${checkpointId ? ` (checkpoint: ${checkpointId})` : ''}`,
+          source: 'execution-tracker',
+        });
+      } catch (error) {
+        console.error('[ExecutionTracker] Failed to persist completion:', error);
+      }
     }
   }
 
   /**
    * Fail an execution
    */
-  failExecution(executionId: string, error: string): void {
+  async failExecution(executionId: string, error: string): Promise<void> {
     const execution = this.executions.get(executionId);
     if (execution) {
       execution.status = "failed";
       execution.completedAt = new Date();
       execution.error = error;
+
+      // Persist failure to database
+      try {
+        await resultsPersistence.saveLog({
+          agentId: execution.agentId,
+          executionId,
+          level: 'error',
+          message: `Execution failed: ${error}`,
+          source: 'execution-tracker',
+        });
+      } catch (dbError) {
+        console.error('[ExecutionTracker] Failed to persist failure:', dbError);
+      }
     }
   }
 

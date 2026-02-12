@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Agent execution results and metadata
+model AgentResult {
+  id          String   @id @default(uuid())
+  agentId     String
+  checkpointId String?
+  questId     String?
+  result      String   @db.Text
+  metadata    Json
+  status      String
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([agentId])
+  @@index([checkpointId])
+  @@index([questId])
+}
+
+// Execution logs for debugging and monitoring
+model ExecutionLog {
+  id          String   @id @default(uuid())
+  agentId     String
+  executionId String
+  level       String
+  message     String   @db.Text
+  source      String?
+  timestamp   DateTime @default(now())
+
+  @@index([agentId])
+  @@index([executionId])
+}
+
+// Checkpoint state for agent recovery and resumption
+model CheckpointState {
+  id           String   @id @default(uuid())
+  agentId      String
+  checkpointId String   @unique
+  state        Json
+  threadId     String
+  createdAt    DateTime @default(now())
+
+  @@index([agentId])
+  @@index([threadId])
+}
+
+// Execution traces for detailed profiling and debugging
+model AgentTrace {
+  id          String   @id @default(uuid())
+  agentId     String
+  executionId String
+  type        String
+  content     String   @db.Text
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  duration    Int?
+
+  @@index([agentId])
+  @@index([executionId])
+}

@@ -87,7 +87,7 @@ export async function POST(
 
     // Start execution tracking
     const tracker = ExecutionTracker.getInstance();
-    const execution = tracker.startExecution(agentId, threadId, a2aRequest);
+    const execution = await tracker.startExecution(agentId, threadId, a2aRequest);
 
     // Create A2UI wrapper
     const wrapper = new A2UIWrapper(agent, {
@@ -111,7 +111,7 @@ export async function POST(
           }
 
           // Mark execution as completed
-          tracker.completeExecution(execution.id);
+          await tracker.completeExecution(execution.id);
 
           // Send completion event
           controller.enqueue(
@@ -148,9 +148,9 @@ export async function POST(
         }
       },
 
-      cancel() {
+      async cancel() {
         // Handle client disconnect
-        tracker.cancelExecution(execution.id);
+        await tracker.cancelExecution(execution.id);
       },
     });
 

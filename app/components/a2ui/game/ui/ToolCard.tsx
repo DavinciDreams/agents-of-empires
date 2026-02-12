@@ -13,8 +13,14 @@ const TOOL_TYPE_CONFIG: Record<ToolType, { icon: string; label: string; color: s
   search: { icon: "🔍", label: "Search", color: "#3498db" },
   code_executor: { icon: "⚒️", label: "Code Executor", color: "#e74c3c" },
   file_reader: { icon: "📜", label: "File Reader", color: "#27ae60" },
+  file_writer: { icon: "✍️", label: "File Writer", color: "#2ecc71" },
   web_fetcher: { icon: "🌐", label: "Web Fetcher", color: "#9b59b6" },
   subagent: { icon: "🧙", label: "Subagent", color: "#f39c12" },
+  grep: { icon: "🔎", label: "Grep", color: "#1abc9c" },
+  glob: { icon: "🌍", label: "Glob", color: "#16a085" },
+  edit: { icon: "✏️", label: "Edit", color: "#e67e22" },
+  bash: { icon: "💻", label: "Bash", color: "#34495e" },
+  tpmjs_generic: { icon: "📦", label: "TPMJS Tool", color: "#95a5a6" },
 };
 
 const RARITY_CONFIG: Record<Rarity, { label: string; color: string; bgGradient: string; glowColor: string; borderStyle: string }> = {

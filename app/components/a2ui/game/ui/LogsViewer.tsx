@@ -3,6 +3,9 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/app/components/a2ui/game/store';
 import type { LogLevel } from '@/app/components/a2ui/game/store';
+import { DropdownButton } from '@/app/components/a2ui/components/DropdownButton';
+import { downloadJSON, downloadCSV, downloadText } from '@/app/lib/utils/download';
+import { logsToCSV, logsToText } from '@/app/lib/utils/formatters';
 
 const LOG_COLORS: Record<LogLevel, string> = {
   info: 'text-blue-300',
@@ -74,6 +77,35 @@ export function LogsViewer() {
     });
   };
 
+  // Handle download in various formats
+  const handleDownload = (format: string) => {
+    if (logs.length === 0) {
+      const addLog = useGameStore.getState().addLog;
+      addLog('warn', 'No logs available to download', 'system');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `logs-${timestamp}`;
+
+    switch (format) {
+      case 'json':
+        downloadJSON(logs, `${filename}.json`);
+        break;
+      case 'csv':
+        const csv = logsToCSV(logs);
+        downloadCSV(csv, `${filename}.csv`);
+        break;
+      case 'txt':
+        const txt = logsToText(logs);
+        downloadText(txt, `${filename}.txt`);
+        break;
+    }
+
+    const addLog = useGameStore.getState().addLog;
+    addLog('success', `Downloaded ${logs.length} logs as ${format.toUpperCase()}`, 'system');
+  };
+
   if (!logsVisible) {
     return (
       <button
@@ -99,6 +131,17 @@ export function LogsViewer() {
           <span className="text-gray-400 font-mono text-xs">({logs.length})</span>
         </div>
         <div className="flex items-center gap-2">
+          <DropdownButton
+            label="Download"
+            icon="💾"
+            options={[
+              { value: 'json', label: 'JSON', icon: '📄' },
+              { value: 'csv', label: 'CSV', icon: '📊' },
+              { value: 'txt', label: 'TXT', icon: '📝' },
+            ]}
+            onSelect={handleDownload}
+            disabled={logs.length === 0}
+          />
           <button
             onClick={clearLogs}
             className="px-2 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-mono rounded transition-colors"

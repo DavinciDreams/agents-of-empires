@@ -447,6 +447,262 @@ Cancel an ongoing agent execution.
 
 ---
 
+## Results & Persistence API
+
+### List Agent Results
+
+Get all execution results for a specific agent with pagination and filtering.
+
+**Endpoint:** `GET /api/agents/[agentId]/results`
+
+**Query Parameters:**
+
+```typescript
+{
+  limit?: number;      // Max results to return (default: 50, max: 100)
+  offset?: number;     // Pagination offset (default: 0)
+  status?: string;     // Filter by status (e.g., "completed", "failed", "running")
+  questId?: string;    // Filter by quest ID
+}
+```
+
+**Example Request:**
+
+```bash
+curl http://localhost:3000/api/agents/agent-1/results?limit=10&status=completed
+```
+
+**Response:**
+
+```typescript
+{
+  results: Array<{
+    id: string;
+    agentId: string;
+    checkpointId?: string;
+    questId?: string;
+    status: string;
+    createdAt: string;
+    completedAt?: string;
+    metadata: any;
+  }>;
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+```
+
+### Get Single Result
+
+Retrieve a specific execution result with multiple export formats.
+
+**Endpoint:** `GET /api/agents/[agentId]/results/[resultId]`
+
+**Query Parameters:**
+
+```typescript
+{
+  format?: "json" | "md" | "csv" | "zip";  // Export format (default: json)
+  includeTraces?: boolean;                  // Include trace data (default: false)
+  includeLogs?: boolean;                    // Include log data (default: false)
+}
+```
+
+**Example Requests:**
+
+```bash
+# Get as JSON
+curl http://localhost:3000/api/agents/agent-1/results/result-123
+
+# Download as Markdown
+curl http://localhost:3000/api/agents/agent-1/results/result-123?format=md -o result.md
+
+# Download as ZIP with all data
+curl http://localhost:3000/api/agents/agent-1/results/result-123?format=zip -o result.zip
+```
+
+**JSON Response:**
+
+```typescript
+{
+  id: string;
+  agentId: string;
+  checkpointId?: string;
+  questId?: string;
+  status: string;
+  createdAt: string;
+  completedAt?: string;
+  result: any;              // Parsed result data
+  metadata: any;
+  logs?: Array<LogEntry>;   // If includeLogs=true
+  traces?: Array<TraceEvent>; // If includeTraces=true
+}
+```
+
+### Get Execution Logs
+
+Retrieve execution logs with filtering and multiple formats.
+
+**Endpoint:** `GET /api/agents/[agentId]/logs`
+
+**Query Parameters:**
+
+```typescript
+{
+  executionId?: string;  // Filter by execution ID
+  level?: string;        // Filter by log level (e.g., "info", "error", "debug")
+  source?: string;       // Filter by log source
+  limit?: number;        // Max logs to return (default: 100, max: 1000)
+  offset?: number;       // Pagination offset (default: 0)
+  format?: "json" | "csv" | "text";  // Export format (default: json)
+}
+```
+
+**Example Requests:**
+
+```bash
+# Get logs as JSON
+curl http://localhost:3000/api/agents/agent-1/logs?level=error
+
+# Download logs as CSV
+curl http://localhost:3000/api/agents/agent-1/logs?format=csv -o logs.csv
+
+# Download logs as text
+curl http://localhost:3000/api/agents/agent-1/logs?format=text -o logs.txt
+```
+
+**Response:**
+
+```typescript
+{
+  logs: Array<{
+    id: string;
+    agentId: string;
+    executionId: string;
+    level: string;
+    message: string;
+    source?: string;
+    timestamp: string;
+  }>;
+  count: number;
+  limit: number;
+  offset: number;
+}
+```
+
+### Get Execution Traces
+
+Retrieve detailed execution traces from database and/or LangSmith.
+
+**Endpoint:** `GET /api/agents/[agentId]/traces`
+
+**Query Parameters:**
+
+```typescript
+{
+  executionId?: string;  // Filter by execution ID
+  limit?: number;        // Max traces to return (default: 100)
+  since?: string;        // ISO timestamp - only traces after this time
+  source?: "database" | "langsmith" | "both";  // Data source (default: database)
+  format?: "json" | "csv";  // Export format (default: json)
+}
+```
+
+**Example Requests:**
+
+```bash
+# Get traces from database
+curl http://localhost:3000/api/agents/agent-1/traces
+
+# Get traces from both sources
+curl http://localhost:3000/api/agents/agent-1/traces?source=both
+
+# Download traces as CSV
+curl http://localhost:3000/api/agents/agent-1/traces?format=csv -o traces.csv
+```
+
+**Response:**
+
+```typescript
+{
+  traces: Array<{
+    id: string;
+    timestamp: number;
+    type: "thought" | "tool" | "message" | "checkpoint" | "error";
+    content: string;
+    metadata?: any;
+    duration?: number;
+  }>;
+  count: number;
+  agent_id: string;
+}
+```
+
+### Access Workspace Files
+
+List and download files from agent's E2B sandbox workspace.
+
+**Endpoint:** `GET /api/agents/[agentId]/workspace`
+
+**Query Parameters:**
+
+```typescript
+{
+  path?: string;  // Directory path to list (default: /home/user)
+}
+```
+
+**Example Request:**
+
+```bash
+curl http://localhost:3000/api/agents/agent-1/workspace?path=/home/user/project
+```
+
+**Response:**
+
+```typescript
+{
+  path: string;
+  files: Array<{
+    name: string;
+    path: string;
+    type: "file" | "dir";
+    size: number;
+  }>;
+  count: number;
+}
+```
+
+### Download Workspace File
+
+Download a specific file from agent's workspace.
+
+**Endpoint:** `POST /api/agents/[agentId]/workspace`
+
+**Request Body:**
+
+```typescript
+{
+  filePath: string;  // Full path to file in sandbox
+}
+```
+
+**Example Request:**
+
+```bash
+curl -X POST http://localhost:3000/api/agents/agent-1/workspace \
+  -H "Content-Type: application/json" \
+  -d '{"filePath": "/home/user/project/output.json"}' \
+  -o output.json
+```
+
+**Response:** File content with appropriate Content-Type header
+
+**Note:** Workspace endpoints require an active E2B sandbox for the agent.
+
+---
+
 ## Agent Card
 
 ### Get Agent Metadata

@@ -8,6 +8,7 @@
 import { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { LocalSandbox } from "../sandbox/LocalSandbox";
+import { getUnsandboxManager } from "../../unsandbox/manager";
 import fs from "fs/promises";
 import path from "path";
 
@@ -18,6 +19,7 @@ import path from "path";
 /**
  * File Read Tool
  * Allows agents to read files from their sandboxed workspace
+ * Uses E2B remote sandbox if available, falls back to local filesystem
  */
 export class FileReadTool extends StructuredTool {
   name = "read_file";
@@ -29,6 +31,7 @@ export class FileReadTool extends StructuredTool {
 
   private sandbox: LocalSandbox;
   private agentId: string;
+  private useE2B: boolean;
 
   constructor(agentId: string, workingDirectory?: string) {
     super();
@@ -36,11 +39,38 @@ export class FileReadTool extends StructuredTool {
     this.sandbox = new LocalSandbox({
       workingDirectory: workingDirectory || `./sandbox-workspace/${agentId}`,
     });
+
+    // Check if E2B is available
+    const manager = getUnsandboxManager();
+    this.useE2B = manager.isAvailable();
+
+    if (!this.useE2B) {
+      console.warn(
+        `[FileReadTool] E2B_API_KEY not set, using local filesystem fallback for agent: ${agentId}`
+      );
+    }
   }
 
   async _call({ filepath }: z.infer<typeof this.schema>): Promise<string> {
+    // Use E2B if available
+    if (this.useE2B) {
+      try {
+        const manager = getUnsandboxManager();
+        const e2bSandbox = await manager.getOrCreateSandbox(this.agentId);
+
+        // Read file using E2B filesystem API
+        const fileContent = await e2bSandbox.files.read(filepath);
+        return `File: ${filepath}\n\n${fileContent}`;
+      } catch (error) {
+        if ((error as any).message?.includes("not found") || (error as any).message?.includes("does not exist")) {
+          return `Error: File not found: ${filepath}`;
+        }
+        return `Error reading file from E2B: ${(error as Error).message}`;
+      }
+    }
+
+    // Fallback to local filesystem
     try {
-      // Ensure sandbox directory exists
       await this.sandbox.ensureWorkspace();
 
       // Validate path is within sandbox
@@ -66,6 +96,7 @@ export class FileReadTool extends StructuredTool {
 /**
  * File Write Tool
  * Allows agents to write files to their sandboxed workspace
+ * Uses E2B remote sandbox if available, falls back to local filesystem
  */
 export class FileWriteTool extends StructuredTool {
   name = "write_file";
@@ -78,6 +109,7 @@ export class FileWriteTool extends StructuredTool {
 
   private sandbox: LocalSandbox;
   private agentId: string;
+  private useE2B: boolean;
 
   constructor(agentId: string, workingDirectory?: string) {
     super();
@@ -85,11 +117,35 @@ export class FileWriteTool extends StructuredTool {
     this.sandbox = new LocalSandbox({
       workingDirectory: workingDirectory || `./sandbox-workspace/${agentId}`,
     });
+
+    // Check if E2B is available
+    const manager = getUnsandboxManager();
+    this.useE2B = manager.isAvailable();
+
+    if (!this.useE2B) {
+      console.warn(
+        `[FileWriteTool] E2B_API_KEY not set, using local filesystem fallback for agent: ${agentId}`
+      );
+    }
   }
 
   async _call({ filepath, content }: z.infer<typeof this.schema>): Promise<string> {
+    // Use E2B if available
+    if (this.useE2B) {
+      try {
+        const manager = getUnsandboxManager();
+        const e2bSandbox = await manager.getOrCreateSandbox(this.agentId);
+
+        // Write file using E2B filesystem API
+        await e2bSandbox.files.write(filepath, content);
+        return `Successfully wrote ${content.length} characters to ${filepath}`;
+      } catch (error) {
+        return `Error writing file to E2B: ${(error as Error).message}`;
+      }
+    }
+
+    // Fallback to local filesystem
     try {
-      // Ensure sandbox directory exists
       await this.sandbox.ensureWorkspace();
 
       // Validate path is within sandbox
@@ -116,6 +172,7 @@ export class FileWriteTool extends StructuredTool {
 /**
  * List Files Tool
  * Allows agents to list files in their workspace
+ * Uses E2B remote sandbox if available, falls back to local filesystem
  */
 export class ListFilesTool extends StructuredTool {
   name = "list_files";
@@ -127,6 +184,7 @@ export class ListFilesTool extends StructuredTool {
 
   private sandbox: LocalSandbox;
   private agentId: string;
+  private useE2B: boolean;
 
   constructor(agentId: string, workingDirectory?: string) {
     super();
@@ -134,11 +192,45 @@ export class ListFilesTool extends StructuredTool {
     this.sandbox = new LocalSandbox({
       workingDirectory: workingDirectory || `./sandbox-workspace/${agentId}`,
     });
+
+    // Check if E2B is available
+    const manager = getUnsandboxManager();
+    this.useE2B = manager.isAvailable();
+
+    if (!this.useE2B) {
+      console.warn(
+        `[ListFilesTool] E2B_API_KEY not set, using local filesystem fallback for agent: ${agentId}`
+      );
+    }
   }
 
   async _call({ directory = "." }: z.infer<typeof this.schema>): Promise<string> {
+    // Use E2B if available
+    if (this.useE2B) {
+      try {
+        const manager = getUnsandboxManager();
+        const e2bSandbox = await manager.getOrCreateSandbox(this.agentId);
+
+        // List files using E2B filesystem API
+        const entries = await e2bSandbox.files.list(directory);
+
+        if (entries.length === 0) {
+          return `Directory is empty: ${directory}`;
+        }
+
+        const files = entries.map(entry => {
+          const type = entry.type === "dir" ? "[DIR]" : "[FILE]";
+          return `${type} ${entry.name}`;
+        });
+
+        return `Files in ${directory}:\n${files.join("\n")}`;
+      } catch (error) {
+        return `Error listing files in E2B: ${(error as Error).message}`;
+      }
+    }
+
+    // Fallback to local filesystem
     try {
-      // Ensure sandbox directory exists
       await this.sandbox.ensureWorkspace();
 
       // Validate path is within sandbox

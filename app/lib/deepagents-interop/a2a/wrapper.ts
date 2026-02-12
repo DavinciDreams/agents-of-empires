@@ -76,9 +76,12 @@ export class A2AWrapper {
         },
       };
 
-      // Execute agent
+      // Execute agent with timeout cancellation
       const result = await this.executeWithTimeout(
-        () => this.agent.invoke(input, runConfig),
+        (signal) => this.agent.invoke(input, {
+          ...runConfig,
+          signal, // Pass AbortSignal to LangGraph
+        }),
         this.config.timeout
       );
 
@@ -209,21 +212,33 @@ export class A2AWrapper {
   }
 
   /**
-   * Execute with timeout
+   * Execute with timeout and proper cancellation
+   *
+   * Uses AbortController to properly cancel execution when timeout is reached,
+   * preventing zombie processes.
    */
   private async executeWithTimeout<T>(
-    fn: () => Promise<T>,
+    fn: (signal: AbortSignal) => Promise<T>,
     timeoutMs: number
   ): Promise<T> {
-    return Promise.race([
-      fn(),
-      new Promise<T>((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Execution timeout")),
-          timeoutMs
-        )
-      ),
-    ]);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+      this.log("Execution aborted due to timeout");
+    }, timeoutMs);
+
+    try {
+      const result = await fn(controller.signal);
+      return result;
+    } catch (error) {
+      // If aborted, throw timeout error
+      if (controller.signal.aborted) {
+        throw new Error("Execution timeout - operation was cancelled");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**

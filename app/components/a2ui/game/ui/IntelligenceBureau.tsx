@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore, useAgentsMap, type GameAgent } from '@/app/components/a2ui/game/store';
+import { DropdownButton } from '@/app/components/a2ui/components/DropdownButton';
+import { downloadJSON, downloadCSV, downloadZIP } from '@/app/lib/utils/download';
+import { tracesToJSON, tracesToCSV, createTraceMetadata } from '@/app/lib/utils/formatters';
 
 // ============================================================================
 // Intelligence Bureau Component
@@ -225,6 +228,46 @@ export function IntelligenceBureau({ agentId, onClose }: IntelligenceBureauProps
     return `${hours}h ago`;
   };
 
+  // Handle export in various formats
+  const handleExport = async (format: string) => {
+    if (traces.length === 0) {
+      const addLog = useGameStore.getState().addLog;
+      addLog('warn', 'No trace data available to export', 'system');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `traces-${agentId}-${timestamp}`;
+
+    try {
+      switch (format) {
+        case 'json':
+          downloadJSON(traces, `${filename}.json`);
+          break;
+        case 'csv':
+          const csv = tracesToCSV(traces);
+          downloadCSV(csv, `${filename}.csv`);
+          break;
+        case 'zip':
+          const metadata = createTraceMetadata(agentId, agent?.name || 'Unknown', traces.length);
+          const files = {
+            'traces.json': tracesToJSON(traces),
+            'traces.csv': tracesToCSV(traces),
+            'metadata.json': metadata,
+          };
+          await downloadZIP(files, `${filename}.zip`);
+          break;
+      }
+
+      const addLog = useGameStore.getState().addLog;
+      addLog('success', `Exported ${traces.length} traces as ${format.toUpperCase()}`, 'system');
+    } catch (error) {
+      console.error('Export error:', error);
+      const addLog = useGameStore.getState().addLog;
+      addLog('error', `Failed to export traces: ${error}`, 'system');
+    }
+  };
+
   if (!agent) return null;
 
   const selectedTraceData = traces.find(t => t.id === selectedTrace);
@@ -265,6 +308,17 @@ export function IntelligenceBureau({ agentId, onClose }: IntelligenceBureauProps
           {traces.length} trace events
         </div>
         <div className="flex items-center gap-2">
+          <DropdownButton
+            label="Export"
+            icon="📦"
+            options={[
+              { value: 'json', label: 'JSON', icon: '📄' },
+              { value: 'csv', label: 'CSV', icon: '📊' },
+              { value: 'zip', label: 'ZIP', icon: '🗜️' },
+            ]}
+            onSelect={handleExport}
+            disabled={traces.length === 0}
+          />
           <button
             onClick={() => setAutoScroll(!autoScroll)}
             className={`text-xs px-2 py-1 rounded transition-colors ${
