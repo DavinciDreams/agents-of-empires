@@ -4,6 +4,8 @@ import { createDeepAgent } from "deepagents";
 import { createLLM, getAvailableProviders, type LLMProvider } from "@/app/lib/deepagents-interop/a2a/providers";
 import { TavilySearch } from "@langchain/tavily";
 import { z } from "zod";
+import { LocalSandbox } from "@/app/lib/deepagents-interop/sandbox/LocalSandbox";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,9 +62,18 @@ export async function POST(request: NextRequest) {
           tavilyApiKey: process.env.TAVILY_API_KEY,
         });
 
-        // Create a Deep Agent with tools
+        // Create persistent sandbox for this agent's quest
+        // All checkpoints in the same quest will use the same sandbox
+        const sandboxPath = path.join(process.cwd(), 'sandbox-workspace', agentId);
+        const sandbox = new LocalSandbox({
+          workingDirectory: sandboxPath,
+          timeout: 60000, // 60 second timeout for commands
+        });
+
+        // Create a Deep Agent with tools and persistent sandbox
         const agent = createDeepAgent({
           model: llm,
+          sandbox, // Use persistent sandbox
           systemPrompt: `You are an AI agent executing a software development task. Be concise and practical.
 
 Focus on the specific task given. Break it down into steps if needed, and execute each step methodically.
@@ -77,6 +88,12 @@ IMPORTANT FILE HANDLING:
   EOF
 - Always save your work - don't just describe what to create
 - After creating files, confirm they exist with 'ls -la' or 'cat filename'
+
+PERSISTENT FILES:
+- Files you create persist across checkpoints in this quest
+- If you created index.html in checkpoint 1, it will still exist in checkpoint 2
+- You can reference and modify files from previous checkpoints
+- Use 'ls -la' to see all existing files before starting work
 
 IMPORTANT: Once you have completed the task, provide a clear final answer. Do not enter loops or repeatedly call the same tool with the same inputs. If a tool fails, try a different approach or explain the limitation.`,
           tools: [tavilySearch],
