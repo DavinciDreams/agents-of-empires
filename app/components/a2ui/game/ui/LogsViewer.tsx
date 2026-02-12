@@ -20,7 +20,11 @@ const LOG_ICONS: Record<LogLevel, string> = {
   success: '✅',
 };
 
-export function LogsViewer() {
+interface LogsViewerProps {
+  compact?: boolean;
+}
+
+export function LogsViewer({ compact = false }: LogsViewerProps) {
   const logs = useGameStore((state) => state.logs);
   const logsVisible = useGameStore((state) => state.logsVisible);
   const toggleLogsVisible = useGameStore((state) => state.toggleLogsVisible);
@@ -74,7 +78,8 @@ export function LogsViewer() {
     });
   };
 
-  if (!logsVisible) {
+  // In compact mode, always show logs (ignore logsVisible toggle)
+  if (!compact && !logsVisible) {
     return (
       <button
         onClick={toggleLogsVisible}
@@ -88,31 +93,46 @@ export function LogsViewer() {
 
   return (
     <div
-      className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 w-[600px] h-[300px] bg-gray-900/95 border-2 border-gray-600 rounded-lg shadow-2xl flex flex-col"
+      className={compact
+        ? "w-full h-full bg-[var(--homm-wood-dark)]/95 rounded-lg flex flex-col"
+        : "fixed bottom-32 left-1/2 -translate-x-1/2 z-50 w-[600px] h-[300px] bg-gray-900/95 border-2 border-gray-600 rounded-lg shadow-2xl flex flex-col"
+      }
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-600 rounded-t-lg">
+      <div className={compact
+        ? "flex items-center justify-between px-3 py-2 bg-[var(--homm-dark-brown)] border-b border-[var(--homm-gold)]/20"
+        : "flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-600 rounded-t-lg"
+      }>
         <div className="flex items-center gap-2">
-          <span className="text-white font-mono text-sm font-bold">📋 Live Logs</span>
-          <span className="text-gray-400 font-mono text-xs">({logs.length})</span>
+          <span className={compact ? "text-[var(--homm-parchment-light)] font-mono text-xs font-bold" : "text-white font-mono text-sm font-bold"}>
+            📋 Live Logs
+          </span>
+          <span className={compact ? "text-[var(--homm-tan)] font-mono text-xs" : "text-gray-400 font-mono text-xs"}>
+            ({logs.length})
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={clearLogs}
-            className="px-2 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-mono rounded transition-colors"
+            className={compact
+              ? "rts-button-danger px-2 py-1 text-xs rounded"
+              : "px-2 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-mono rounded transition-colors"
+            }
             title="Clear logs"
           >
             Clear
           </button>
-          <button
-            onClick={toggleLogsVisible}
-            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-mono rounded transition-colors"
-            title="Hide logs"
-          >
-            ✕
-          </button>
+          {!compact && (
+            <button
+              onClick={toggleLogsVisible}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-mono rounded transition-colors"
+              title="Hide logs"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { GameLayout, TabbedPanel, CollapsibleSection, FloatingPanel } from './Ga
 import { Minimap, AgentPanel, QuestTracker } from './HUD';
 import { AgentLibrary } from './AgentLibrary';
 import { PipelineVisualization } from './PipelineVisualization';
+import { ToolLibrary } from './ToolLibrary';
 import { ChatCommander } from './ChatCommander';
 import { LogsViewer } from './LogsViewer';
 import { AgentProgressHUD } from './AgentProgressHUD';
@@ -20,6 +21,7 @@ import { FleetCommand } from './FleetCommand';
 export function HUD_v2() {
   const [showAgentLibrary, setShowAgentLibrary] = useState(false);
   const [showPipelineViz, setShowPipelineViz] = useState(false);
+  const [showToolLibrary, setShowToolLibrary] = useState(false);
 
   return (
     <div className="fixed inset-0 pointer-events-none">
@@ -54,7 +56,14 @@ export function HUD_v2() {
           className="rts-button-primary px-4 py-2 rounded flex items-center gap-2 shadow-lg"
         >
           <span>🎭</span>
-          <span>Agent Library</span>
+          <span>Agents</span>
+        </button>
+        <button
+          onClick={() => setShowToolLibrary(true)}
+          className="rts-button-primary px-4 py-2 rounded flex items-center gap-2 shadow-lg"
+        >
+          <span>🗡️</span>
+          <span>Tools</span>
         </button>
         <button
           onClick={() => setShowPipelineViz(true)}
@@ -72,6 +81,12 @@ export function HUD_v2() {
             onClose={() => setShowAgentLibrary(false)}
             onSelectAgent={(id) => console.log('Selected:', id)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showToolLibrary && (
+          <ToolLibrary onClose={() => setShowToolLibrary(false)} />
         )}
       </AnimatePresence>
 

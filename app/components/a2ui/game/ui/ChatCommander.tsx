@@ -3,7 +3,11 @@
 import { useRef, useState } from 'react';
 import { useGameStore } from '@/app/components/a2ui/game/store';
 
-export function ChatCommander() {
+interface ChatCommanderProps {
+  compact?: boolean;
+}
+
+export function ChatCommander({ compact = false }: ChatCommanderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function ChatCommander() {
 
   return (
     <div
-      className="fixed bottom-20 left-1/2 -translate-x-1/2 w-[600px] z-50"
+      className={compact ? "w-full" : "fixed bottom-20 left-1/2 -translate-x-1/2 w-[600px] z-50"}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
