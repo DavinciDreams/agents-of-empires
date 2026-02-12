@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useGameStore, useAgentCount, useDragonCount, useQuestCount, useCompletedQuestCount } from '@/app/components/a2ui/game/store';
 import { GameLayout, TabbedPanel, CollapsibleSection, FloatingPanel } from './GameLayout';
@@ -198,8 +198,11 @@ function ResourceCounter({
    ============================================================================ */
 
 function LeftPanel() {
-  const quests = useGameStore((state) => Object.values(state.quests));
+  const questsMap = useGameStore((state) => state.quests);
   const logs = useGameStore((state) => state.logs);
+
+  // Memoize to avoid infinite re-renders
+  const quests = useMemo(() => Object.values(questsMap), [questsMap]);
 
   const tabs = [
     {
@@ -234,8 +237,11 @@ function LeftPanel() {
    ============================================================================ */
 
 function RightPanel() {
-  const agents = useGameStore((state) => Object.values(state.agents));
+  const agentsMap = useGameStore((state) => state.agents);
   const selectedAgentIds = useGameStore((state) => state.selectedAgentIds);
+
+  // Memoize to avoid infinite re-renders
+  const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
 
   const tabs = [
     {
