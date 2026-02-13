@@ -109,8 +109,9 @@ export class TPMJSClient {
     const endpoint = `?${params.toString()}`;
     const data = await this.queueRequest(() => this.fetch(endpoint, {}, abortSignal));
 
+    // TPMJS returns data in data.results.tools, not data.tools
     const result: TPMJSSearchResult = {
-      tools: data.tools || [],
+      tools: data.results?.tools || data.tools || [],
       pagination: {
         limit: data.pagination?.limit || limit,
         offset: data.pagination?.offset || 0,
@@ -143,8 +144,9 @@ export class TPMJSClient {
     const endpoint = `?${params.toString()}`;
     const data = await this.queueRequest(() => this.fetch(endpoint));
 
+    // TPMJS returns data in data.results.tools, not data.tools
     const result: TPMJSSearchResult = {
-      tools: data.tools || [],
+      tools: data.results?.tools || data.tools || [],
       pagination: {
         limit: data.pagination?.limit || limit,
         offset: data.pagination?.offset || offset,
