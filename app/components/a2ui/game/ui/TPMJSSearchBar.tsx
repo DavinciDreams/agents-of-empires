@@ -60,7 +60,17 @@ export function TPMJSSearchBar({
     if (value.trim().length >= 2) {
       debounceTimerRef.current = setTimeout(() => {
         onSearch(value);
-      }, 500);
+      }, 300); // Reduced from 500ms for faster response
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && query.trim().length >= 2) {
+      // Clear debounce timer and search immediately
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      onSearch(query);
     }
   };
 
@@ -81,9 +91,10 @@ export function TPMJSSearchBar({
       <div className="relative">
         <input
           type="text"
-          placeholder="Search 667+ AI tools..."
+          placeholder="Search 667+ AI tools... (press Enter)"
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="w-full px-4 py-3 bg-gray-800 border-2 border-[var(--empire-gold)]/30 rounded-lg text-white placeholder-gray-500 focus:border-[var(--empire-gold)] focus:outline-none transition-colors"
           style={{ fontFamily: 'Lora, serif' }}
         />
