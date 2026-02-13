@@ -38,9 +38,21 @@ export function TestToolModal({ tool, onClose, onExecute }: TestToolModalProps) 
   };
 
   const handleExecute = async () => {
+    // Check required fields
+    const missingFields = inputFields
+      .filter(field => field.required && !params[field.name])
+      .map(field => field.name);
+
+    if (missingFields.length > 0) {
+      setError(`Missing required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
     setIsExecuting(true);
     setError(null);
     setResult(null);
+
+    console.log(`[TestToolModal] Executing ${tool.package}.${tool.toolName} with params:`, params);
 
     try {
       const executionResult = await onExecute(params);
