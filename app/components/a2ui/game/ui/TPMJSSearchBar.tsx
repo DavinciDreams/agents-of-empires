@@ -56,10 +56,12 @@ export function TPMJSSearchBar({
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Set new timer
-    debounceTimerRef.current = setTimeout(() => {
-      onSearch(value);
-    }, 500);
+    // Only search if there's a query (at least 2 characters)
+    if (value.trim().length >= 2) {
+      debounceTimerRef.current = setTimeout(() => {
+        onSearch(value);
+      }, 500);
+    }
   };
 
   const handleCategoryClick = (categoryId: string) => {
