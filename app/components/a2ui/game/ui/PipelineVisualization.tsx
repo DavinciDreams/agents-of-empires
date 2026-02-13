@@ -79,7 +79,7 @@ export function PipelineVisualization({ onClose, compact = false }: PipelineVisu
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 pointer-events-auto"
       onClick={onClose}
     >
       <motion.div

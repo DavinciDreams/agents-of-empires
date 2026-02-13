@@ -90,7 +90,9 @@ export function GameScene() {
             antialias: true,
             alpha: false,
           }}
+          eventPrefix="offset"
           className="w-full h-full"
+          style={{ pointerEvents: 'auto' }}
         >
           {/* Lighting - Enhanced for natural atmosphere */}
           <ambientLight intensity={0.45} color="#f0f0e8" />

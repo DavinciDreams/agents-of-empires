@@ -20,6 +20,7 @@ const TOOL_TYPE_CONFIG: Record<ToolType, { icon: string; label: string; color: s
   glob: { icon: "🗂️", label: "Glob", color: "#1abc9c" },
   edit: { icon: "✏️", label: "Edit", color: "#3498db" },
   bash: { icon: "⚡", label: "Bash", color: "#e67e22" },
+  tpmjs_generic: { icon: "📦", label: "TPMJS Tool", color: "#95a5a6" },
 };
 
 const RARITY_CONFIG: Record<Rarity, { label: string; color: string; bgGradient: string; glowColor: string; borderStyle: string }> = {

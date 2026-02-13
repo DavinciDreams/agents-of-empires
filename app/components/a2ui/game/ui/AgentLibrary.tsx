@@ -54,7 +54,7 @@ export function AgentLibrary({ onClose, onSelectAgent }: AgentLibraryProps) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 pointer-events-auto"
       onClick={onClose}
     >
       <motion.div

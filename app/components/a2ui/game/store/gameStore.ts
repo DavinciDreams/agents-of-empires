@@ -3,6 +3,8 @@ import { immer } from "zustand/middleware/immer";
 import { v4 as uuidv4 } from "uuid";
 import { enableMapSet } from "immer";
 import type { BackendType, AgentMiddlewareConfig } from "../bridge/agentConfigTypes";
+import type { TPMJSTool, TPMJSSearchResult, TPMJSListOptions } from "@/app/lib/tpmjs-client";
+import { getTPMJSClient } from "@/app/lib/tpmjs-client";
 
 // Enable Immer's MapSet plugin for Set/Map support
 enableMapSet();
@@ -13,7 +15,18 @@ enableMapSet();
 
 export type AgentState = "IDLE" | "THINKING" | "MOVING" | "WORKING" | "ERROR" | "COMPLETING" | "COMBAT";
 
-export type ToolType = "search" | "code_executor" | "file_reader" | "file_writer" | "web_fetcher" | "subagent" | "grep" | "glob" | "edit" | "bash";
+export type ToolType =
+  | "search"
+  | "code_executor"
+  | "file_reader"
+  | "file_writer"
+  | "web_fetcher"
+  | "subagent"
+  | "grep"
+  | "glob"
+  | "edit"
+  | "bash"
+  | "tpmjs_generic";
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 
@@ -191,6 +204,167 @@ export interface Checkpoint {
 }
 
 // ============================================================================
+// TPMJS Helper Functions
+// ============================================================================
+
+/**
+ * Convert TPMJS category to game ToolType
+ */
+function inferToolType(category: string): ToolType {
+  const categoryLower = category.toLowerCase();
+
+  // Search/Query tools
+  if (
+    categoryLower.includes('search') ||
+    categoryLower.includes('query') ||
+    categoryLower.includes('lookup') ||
+    categoryLower.includes('find') ||
+    categoryLower.includes('discover') ||
+    categoryLower.includes('index')
+  ) return 'search';
+
+  // Code execution tools
+  if (
+    categoryLower.includes('code') ||
+    categoryLower.includes('execute') ||
+    categoryLower.includes('run') ||
+    categoryLower.includes('compile') ||
+    categoryLower.includes('interpreter') ||
+    categoryLower.includes('runtime') ||
+    categoryLower.includes('sandbox')
+  ) return 'code_executor';
+
+  // File reading tools
+  if (
+    (categoryLower.includes('file') && categoryLower.includes('read')) ||
+    categoryLower.includes('viewer') ||
+    categoryLower.includes('reader') ||
+    categoryLower.includes('parse') ||
+    categoryLower.includes('load')
+  ) return 'file_reader';
+
+  // File writing tools
+  if (
+    (categoryLower.includes('file') && (categoryLower.includes('write') || categoryLower.includes('create'))) ||
+    categoryLower.includes('writer') ||
+    categoryLower.includes('save') ||
+    categoryLower.includes('store') ||
+    categoryLower.includes('persist')
+  ) return 'file_writer';
+
+  // Web fetching tools
+  if (
+    categoryLower.includes('web') ||
+    categoryLower.includes('http') ||
+    categoryLower.includes('fetch') ||
+    categoryLower.includes('curl') ||
+    categoryLower.includes('request') ||
+    categoryLower.includes('api') ||
+    categoryLower.includes('rest') ||
+    categoryLower.includes('scrape') ||
+    categoryLower.includes('crawl')
+  ) return 'web_fetcher';
+
+  // Grep/pattern matching tools
+  if (
+    categoryLower.includes('grep') ||
+    categoryLower.includes('pattern') ||
+    categoryLower.includes('regex') ||
+    categoryLower.includes('match') ||
+    categoryLower.includes('filter')
+  ) return 'grep';
+
+  // Glob/file matching tools
+  if (
+    categoryLower.includes('glob') ||
+    categoryLower.includes('wildcard') ||
+    categoryLower.includes('path')
+  ) return 'glob';
+
+  // Edit/modify tools
+  if (
+    categoryLower.includes('edit') ||
+    categoryLower.includes('modify') ||
+    categoryLower.includes('update') ||
+    categoryLower.includes('patch') ||
+    categoryLower.includes('transform')
+  ) return 'edit';
+
+  // Bash/shell tools
+  if (
+    categoryLower.includes('bash') ||
+    categoryLower.includes('shell') ||
+    categoryLower.includes('terminal') ||
+    categoryLower.includes('command') ||
+    categoryLower.includes('cli')
+  ) return 'bash';
+
+  // Agent/subagent tools
+  if (
+    categoryLower.includes('agent') ||
+    categoryLower.includes('subagent') ||
+    categoryLower.includes('task') ||
+    categoryLower.includes('workflow') ||
+    categoryLower.includes('orchestration')
+  ) return 'subagent';
+
+  // Fallback to generic TPMJS tool
+  return 'tpmjs_generic';
+}
+
+/**
+ * Get icon emoji based on category
+ */
+function getCategoryIcon(category: string): string {
+  const categoryLower = category.toLowerCase();
+
+  if (categoryLower.includes('search')) return '🔍';
+  if (categoryLower.includes('code')) return '⚙️';
+  if (categoryLower.includes('file') && categoryLower.includes('read')) return '📖';
+  if (categoryLower.includes('file') && categoryLower.includes('write')) return '✏️';
+  if (categoryLower.includes('web') || categoryLower.includes('http')) return '🌐';
+  if (categoryLower.includes('data')) return '📊';
+  if (categoryLower.includes('ai') || categoryLower.includes('ml')) return '🤖';
+  if (categoryLower.includes('image')) return '🖼️';
+  if (categoryLower.includes('audio')) return '🔊';
+  if (categoryLower.includes('video')) return '🎥';
+  if (categoryLower.includes('text')) return '📝';
+  if (categoryLower.includes('database')) return '🗄️';
+  if (categoryLower.includes('api')) return '🔌';
+  if (categoryLower.includes('tool')) return '🔧';
+
+  return '⚡'; // Default icon
+}
+
+/**
+ * Map quality score to rarity
+ */
+function getQualityRarity(score: number): Rarity {
+  if (score >= 90) return 'legendary';
+  if (score >= 70) return 'epic';
+  if (score >= 50) return 'rare';
+  return 'common';
+}
+
+/**
+ * Convert TPMJS tool to game Tool format
+ */
+function convertTPMJSToolToGameTool(tpmjsTool: TPMJSTool, contextId: string): Tool {
+  return {
+    id: `tpmjs-${tpmjsTool.package}-${tpmjsTool.toolName}`,
+    name: `${tpmjsTool.package}/${tpmjsTool.toolName}`,
+    type: inferToolType(tpmjsTool.category),
+    icon: getCategoryIcon(tpmjsTool.category),
+    description: tpmjsTool.description,
+    rarity: getQualityRarity(tpmjsTool.qualityScore),
+    power: Math.floor(tpmjsTool.qualityScore / 10),
+    cooldownTime: 2000,
+    mastery: 0,
+    experience: 0,
+  };
+}
+
+// ============================================================================
 // Store State
 // ============================================================================
 
@@ -289,6 +463,13 @@ interface GameState {
   logs: LogEntry[];
   maxLogs: number; // Maximum number of logs to keep
   logsVisible: boolean; // Toggle logs panel visibility
+
+  // TPMJS Integration
+  tpmjsCache: Record<string, TPMJSTool>;
+  installedTPMJSTools: Set<string>; // Set of "package/toolName"
+  tpmjsSearchResults: TPMJSTool[];
+  tpmjsLoading: boolean;
+  tpmjsError: string | null;
 }
 
 // ============================================================================
@@ -455,6 +636,15 @@ interface GameActions {
   clearLogs: () => void;
   toggleLogsVisible: () => void;
   setLogsVisible: (visible: boolean) => void;
+
+  // TPMJS Actions
+  searchTPMJSTools: (query: string) => Promise<void>;
+  listTPMJSTools: (options: TPMJSListOptions) => Promise<void>;
+  installTPMJSTool: (tool: TPMJSTool, agentId: string) => void;
+  installTPMJSToolToParty: (tool: TPMJSTool, partyId: string) => void;
+  uninstallTPMJSTool: (toolId: string) => void;
+  cacheTPMJSTool: (tool: TPMJSTool) => void;
+  testTPMJSTool: (packageName: string, toolName: string, params: Record<string, any>) => Promise<any>;
 }
 
 // ============================================================================
@@ -516,6 +706,11 @@ export const useGameStore = create<GameStore>()(
     logs: [],
     maxLogs: 100,
     logsVisible: false,
+    tpmjsCache: {},
+    installedTPMJSTools: new Set(),
+    tpmjsSearchResults: [],
+    tpmjsLoading: false,
+    tpmjsError: null,
 
   // World Actions
   initializeWorld: (width, height) => {
@@ -546,129 +741,19 @@ export const useGameStore = create<GameStore>()(
   spawnAgent: (name, position, agentRef, parentId) => {
     const id = uuidv4();
 
-    // Create comprehensive DeepAgents toolset for this agent
-    const agentTools: Tool[] = [
-      {
-        id: `read-${id}`,
-        name: "Read",
-        type: "file_reader",
-        icon: "📖",
-        description: "Read files from the filesystem",
-        rarity: "common",
-        power: 5,
-        cooldownTime: 1000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `write-${id}`,
-        name: "Write",
-        type: "file_writer",
-        icon: "✍️",
-        description: "Write new files to the filesystem",
-        rarity: "common",
-        power: 8,
-        cooldownTime: 2000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `edit-${id}`,
-        name: "Edit",
-        type: "edit",
-        icon: "✏️",
-        description: "Edit existing files with string replacements",
-        rarity: "common",
-        power: 10,
-        cooldownTime: 2000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `grep-${id}`,
-        name: "Grep",
-        type: "grep",
-        icon: "🔍",
-        description: "Search file contents with regex patterns",
-        rarity: "rare",
-        power: 12,
-        cooldownTime: 1500,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `glob-${id}`,
-        name: "Glob",
-        type: "glob",
-        icon: "🗂️",
-        description: "Find files by pattern matching",
-        rarity: "rare",
-        power: 10,
-        cooldownTime: 1000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `bash-${id}`,
-        name: "Bash",
-        type: "bash",
-        icon: "⚡",
-        description: "Execute shell commands and scripts",
-        rarity: "epic",
-        power: 20,
-        cooldownTime: 3000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `code-exec-${id}`,
-        name: "Code Executor",
-        type: "code_executor",
-        icon: "🔧",
-        description: "Execute code in sandboxed environments",
-        rarity: "epic",
-        power: 25,
-        cooldownTime: 4000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `tavily-${id}`,
-        name: "Tavily Search",
-        type: "search",
-        icon: "🌐",
-        description: "Search the web with Tavily AI",
-        rarity: "rare",
-        power: 15,
-        cooldownTime: 3000,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `web-fetch-${id}`,
-        name: "Web Fetch",
-        type: "web_fetcher",
-        icon: "🌍",
-        description: "Fetch and process web content",
-        rarity: "rare",
-        power: 15,
-        cooldownTime: 2500,
-        mastery: 0,
-        experience: 0,
-      },
-      {
-        id: `subagent-${id}`,
-        name: "Task Agent",
-        type: "subagent",
-        icon: "🤖",
-        description: "Spawn specialized sub-agents for complex tasks",
-        rarity: "legendary",
-        power: 30,
-        cooldownTime: 5000,
-        mastery: 0,
-        experience: 0,
-      },
-    ];
+    // Create default Tavily web search tool for this agent
+    const tavilyTool: Tool = {
+      id: `tavily-${id}`,
+      name: "Tavily Web Search",
+      type: "search",
+      icon: "🌐",
+      description: "Search the web for information using Tavily AI",
+      rarity: "rare",
+      power: 15,
+      cooldownTime: 3000,
+      mastery: 0,
+      experience: 0,
+    };
 
     const agent: GameAgent = {
       id,
@@ -680,7 +765,7 @@ export const useGameStore = create<GameStore>()(
       health: 100,
       maxHealth: 100,
       equippedTool: null,
-      inventory: agentTools, // Full DeepAgents toolset
+      inventory: [tavilyTool], // Start with Tavily search tool
       currentTask: "Awaiting orders...",
       agentRef,
       parentId: parentId || null,
@@ -1850,6 +1935,196 @@ export const useGameStore = create<GameStore>()(
         agent.tokenUsage.cost = (agent.tokenUsage.total / 1_000_000) * 9;
       }
     });
+  },
+
+  // TPMJS Actions
+  searchTPMJSTools: async (query: string) => {
+    set((state) => {
+      state.tpmjsLoading = true;
+      state.tpmjsError = null;
+    });
+
+    try {
+      const client = getTPMJSClient();
+      const result = await client.searchTools(query);
+
+      set((state) => {
+        state.tpmjsSearchResults = result.tools;
+        state.tpmjsLoading = false;
+
+        // Cache all returned tools
+        result.tools.forEach((tool) => {
+          const key = `${tool.package}/${tool.toolName}`;
+          state.tpmjsCache[key] = tool;
+        });
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      set((state) => {
+        state.tpmjsLoading = false;
+        state.tpmjsError = errorMessage;
+      });
+      console.error('[searchTPMJSTools] Error:', errorMessage);
+    }
+  },
+
+  listTPMJSTools: async (options: TPMJSListOptions) => {
+    set((state) => {
+      state.tpmjsLoading = true;
+      state.tpmjsError = null;
+    });
+
+    try {
+      const client = getTPMJSClient();
+      const result = await client.listTools(options);
+
+      set((state) => {
+        state.tpmjsSearchResults = result.tools;
+        state.tpmjsLoading = false;
+
+        // Cache all returned tools
+        result.tools.forEach((tool) => {
+          const key = `${tool.package}/${tool.toolName}`;
+          state.tpmjsCache[key] = tool;
+        });
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      set((state) => {
+        state.tpmjsLoading = false;
+        state.tpmjsError = errorMessage;
+      });
+      console.error('[listTPMJSTools] Error:', errorMessage);
+    }
+  },
+
+  installTPMJSTool: (tool: TPMJSTool, agentId: string) => {
+    const toolKey = `${tool.package}/${tool.toolName}`;
+    const gameTool = convertTPMJSToolToGameTool(tool, agentId);
+
+    set((state) => {
+      const agent = state.agents[agentId];
+      if (!agent) {
+        console.warn(`[installTPMJSTool] Agent ${agentId} not found`);
+        return;
+      }
+
+      // Check for duplicates in agent inventory
+      const isDuplicate = agent.inventory.some(
+        (t) => t.id === gameTool.id || t.name === gameTool.name
+      );
+
+      if (isDuplicate) {
+        console.warn(`[installTPMJSTool] Tool ${tool.toolName} already installed on agent ${agent.name}`);
+        get().addLog('warn', `${tool.toolName} is already installed on ${agent.name}`, 'tpmjs');
+        return;
+      }
+
+      // Mark as installed globally
+      state.installedTPMJSTools.add(toolKey);
+
+      // Add to agent inventory
+      agent.inventory.push(gameTool);
+
+      // Cache the TPMJS tool
+      state.tpmjsCache[toolKey] = tool;
+    });
+
+    get().addLog('success', `Installed ${tool.package}/${tool.toolName} to ${get().agents[agentId]?.name}`, 'tpmjs');
+  },
+
+  installTPMJSToolToParty: (tool: TPMJSTool, partyId: string) => {
+    const toolKey = `${tool.package}/${tool.toolName}`;
+    const gameTool = convertTPMJSToolToGameTool(tool, partyId);
+
+    set((state) => {
+      const party = state.parties[partyId];
+      if (!party) {
+        console.warn(`[installTPMJSToolToParty] Party ${partyId} not found`);
+        return;
+      }
+
+      // Check for duplicates in party shared tools
+      const isDuplicate = party.sharedResources.tools.some(
+        (t) => t.id === gameTool.id || t.name === gameTool.name
+      );
+
+      if (isDuplicate) {
+        console.warn(`[installTPMJSToolToParty] Tool ${tool.toolName} already installed on party ${party.name}`);
+        get().addLog('warn', `${tool.toolName} is already installed on party ${party.name}`, 'tpmjs');
+        return;
+      }
+
+      // Mark as installed globally
+      state.installedTPMJSTools.add(toolKey);
+
+      // Create a shared tool for the party
+      party.sharedResources.tools.push(gameTool);
+      party.sharedResources.lastUpdated = Date.now();
+
+      // Cache the TPMJS tool
+      state.tpmjsCache[toolKey] = tool;
+    });
+
+    get().addLog('success', `Installed ${tool.package}/${tool.toolName} to party ${get().parties[partyId]?.name}`, 'tpmjs');
+  },
+
+  uninstallTPMJSTool: (toolId: string) => {
+    set((state) => {
+      // Remove from installed set
+      state.installedTPMJSTools.delete(toolId);
+
+      // Remove from all agent inventories
+      Object.values(state.agents).forEach((agent) => {
+        agent.inventory = agent.inventory.filter((t) => t.id !== `tpmjs-${toolId}`);
+
+        // Unequip if equipped
+        if (agent.equippedTool?.id === `tpmjs-${toolId}`) {
+          agent.equippedTool = null;
+        }
+      });
+
+      // Remove from party shared resources
+      Object.values(state.parties).forEach((party) => {
+        party.sharedResources.tools = party.sharedResources.tools.filter(
+          (t) => t.id !== `tpmjs-${toolId}`
+        );
+      });
+    });
+
+    get().addLog('info', `Uninstalled TPMJS tool: ${toolId}`, 'tpmjs');
+  },
+
+  cacheTPMJSTool: (tool: TPMJSTool) => {
+    set((state) => {
+      const key = `${tool.package}/${tool.toolName}`;
+      state.tpmjsCache[key] = tool;
+    });
+  },
+
+  testTPMJSTool: async (packageName: string, toolName: string, params: Record<string, any>) => {
+    try {
+      const client = getTPMJSClient();
+      const stream = await client.executeTool(packageName, toolName, params);
+
+      // Read the stream and collect results
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+      }
+
+      get().addLog('success', `Tool test complete: ${packageName}/${toolName}`, 'tpmjs');
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      get().addLog('error', `Tool test failed: ${errorMessage}`, 'tpmjs');
+      throw error;
+    }
   },
 })));
 
