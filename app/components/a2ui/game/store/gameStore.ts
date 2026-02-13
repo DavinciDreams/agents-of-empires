@@ -1948,6 +1948,8 @@ export const useGameStore = create<GameStore>()(
       const client = getTPMJSClient();
       const result = await client.searchTools(query);
 
+      console.log(`[searchTPMJSTools] Query: "${query}" returned ${result.tools.length} tools`);
+
       set((state) => {
         state.tpmjsSearchResults = result.tools;
         state.tpmjsLoading = false;
