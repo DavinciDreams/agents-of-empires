@@ -36,7 +36,8 @@ const getQualityGlow = (score: number) => {
 };
 
 // Format download count (e.g., 1200 -> "1.2K", 15000 -> "15K")
-const formatDownloads = (count: number): string => {
+const formatDownloads = (count: number | undefined): string => {
+  if (!count || count === 0) return '0';
   if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
   return count.toString();

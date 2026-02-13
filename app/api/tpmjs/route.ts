@@ -116,6 +116,26 @@ export async function GET(request: NextRequest) {
 
       const data = await response.json();
 
+      // Normalize TPMJS response format to match our interface
+      if (data.results?.tools) {
+        data.results.tools = data.results.tools.map((tool: any) => ({
+          package: tool.package?.npmPackageName || 'unknown',
+          toolName: tool.name || 'unknown',
+          description: tool.description || '',
+          category: tool.package?.category || 'general',
+          downloads: tool.package?.npmDownloadsLastMonth || 0,
+          qualityScore: parseFloat(tool.qualityScore || '0') * 100,
+          official: tool.package?.isOfficial || false,
+          inputSchema: tool.inputSchema || {},
+          healthStatus: tool.importHealth === 'HEALTHY' && tool.executionHealth === 'HEALTHY'
+            ? 'healthy'
+            : tool.importHealth === 'BROKEN' || tool.executionHealth === 'BROKEN'
+            ? 'down'
+            : 'degraded',
+          version: tool.package?.npmVersion || '1.0.0',
+        }));
+      }
+
       // Forward rate limit headers
       const headers = new Headers();
       const remaining = response.headers.get('X-RateLimit-Remaining');
