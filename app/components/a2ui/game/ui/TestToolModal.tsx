@@ -20,12 +20,13 @@ export function TestToolModal({ tool, onClose, onExecute }: TestToolModalProps) 
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Generate form fields from inputSchema
-  const inputFields = tool.inputSchema
-    ? Object.entries(tool.inputSchema).map(([key, type]) => ({
+  // Generate form fields from inputSchema (JSON Schema format)
+  const inputFields = tool.inputSchema?.properties
+    ? Object.entries(tool.inputSchema.properties).map(([key, schema]: [string, any]) => ({
         name: key,
-        type: typeof type === 'string' ? type : 'string',
-        required: true,
+        type: schema.type || 'string',
+        description: schema.description || `Enter ${key}`,
+        required: tool.inputSchema.required?.includes(key) || false,
       }))
     : [];
 
@@ -107,13 +108,16 @@ export function TestToolModal({ tool, onClose, onExecute }: TestToolModalProps) 
                     {field.name}
                     {field.required && <span className="text-red-400 ml-1">*</span>}
                   </label>
+                  {field.description && (
+                    <p className="text-xs text-gray-500 mb-2">{field.description}</p>
+                  )}
                   {field.type === 'string' && (
                     <input
                       type="text"
                       value={params[field.name] || ''}
                       onChange={(e) => handleParamChange(field.name, e.target.value)}
                       className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-[var(--empire-gold)] focus:outline-none transition-colors"
-                      placeholder={`Enter ${field.name}...`}
+                      placeholder={field.description || `Enter ${field.name}...`}
                     />
                   )}
                   {field.type === 'number' && (
@@ -122,7 +126,7 @@ export function TestToolModal({ tool, onClose, onExecute }: TestToolModalProps) 
                       value={params[field.name] || ''}
                       onChange={(e) => handleParamChange(field.name, parseFloat(e.target.value))}
                       className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-[var(--empire-gold)] focus:outline-none transition-colors"
-                      placeholder={`Enter ${field.name}...`}
+                      placeholder={field.description || `Enter ${field.name}...`}
                     />
                   )}
                   {field.type === 'boolean' && (
